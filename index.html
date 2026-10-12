@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Formulario institucional SAT para el Plan de Capacitaciones de noviembre de 2026.">
+  <title>SAT INTUR · Plan noviembre 2026</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <div class="brand"><span class="logo">INTUR</span><div><span>Sistema de Acompañamiento Técnico</span><strong>Plan territorial de capacitaciones</strong></div></div>
+      <button class="admin-access" id="adminAccess" type="button">🔐 Acceso Admin</button>
+      <div class="hero-copy"><span class="eyebrow">Plan mensual · Noviembre 2026</span><h1>Registro de capacitaciones por delegación</h1><p>Completá la información, revisala y guardala. Los datos quedan registrados en línea para seguimiento de la DDT.</p></div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <div class="connection" id="connection" role="status" aria-live="polite"></div>
+
+    <section id="delegateView">
+      <section class="panel identity-panel">
+        <div class="panel-title"><div><span class="eyebrow dark">Identificación territorial</span><h2>Delegación y persona que registra</h2><p>Estos datos permiten saber quién completó el plan y contactarle si hace falta una aclaración.</p></div><span class="status-pill" id="planStatus">Borrador local</span></div>
+        <div class="identity-grid">
+          <label>Región<select id="region"></select></label>
+          <label>Delegación<select id="delegation"></select></label>
+          <label>Nombre de quien registra<input id="registrantName" autocomplete="name" placeholder="Nombre y apellido"></label>
+          <label>Cargo<input id="registrantRole" placeholder="Ej. Especialista territorial"></label>
+          <label>Correo institucional<input id="registrantEmail" type="email" autocomplete="email" placeholder="correo@intur.gob.ni"></label>
+          <label>Teléfono de contacto<input id="registrantPhone" type="tel" autocomplete="tel" placeholder="Ej. 8888-0000"></label>
+        </div>
+      </section>
+
+      <section class="metrics" aria-label="Resumen del plan">
+        <article><span>📋</span><div><small>Capacitaciones</small><strong id="activityCount">0</strong></div></article>
+        <article><span>👥</span><div><small>Proyección total</small><strong id="participantCount">0</strong></div></article>
+        <article><span>🏛️</span><div><small>Delegación</small><strong id="delegationMetric">—</strong></div></article>
+        <article><span>🕒</span><div><small>Último guardado</small><strong id="lastSaved">Pendiente</strong></div></article>
+      </section>
+
+      <section class="panel plan-panel">
+        <div class="panel-title plan-heading"><div><span class="eyebrow dark">Programación mensual</span><h2 id="activitiesHeading">Capacitaciones</h2><p>Una capacitación de varios días se registra una sola vez, indicando las fechas adicionales.</p></div><button class="button secondary" id="addActivity" type="button">＋ Agregar capacitación</button></div>
+        <div class="guidance"><b>Información necesaria:</b> tema, fecha, horario, municipio, lugar, modalidad, quién imparte, quiénes participan, responsable y proyección. En actividades de varios días, agregá las demás fechas sin duplicar la capacitación.</div>
+        <div id="activities"></div>
+        <div class="empty" id="emptyState"><span>🗓️</span><h3>El plan está listo para comenzar</h3><p>Agregá la primera capacitación de tu delegación para noviembre de 2026.</p><button class="button secondary" type="button" id="addFirst">＋ Agregar primera capacitación</button></div>
+      </section>
+
+      <section class="submit-panel">
+        <label class="confirmation"><input type="checkbox" id="confirmed"><span>Confirmo que revisé fechas, responsables, instituciones y proyección de participantes.</span></label>
+        <div><button class="button ghost" id="saveDraft" type="button">Guardar borrador</button><button class="button primary" id="submitPlan" type="button">Enviar plan a la DDT</button></div>
+        <p id="saveMessage" aria-live="polite">Los cambios también se conservan temporalmente en este navegador.</p>
+      </section>
+    </section>
+
+    <section id="adminView" class="admin-view" hidden>
+      <div class="admin-bar"><div><span class="eyebrow dark">Consola administrativa</span><h2>Seguimiento del Plan de Noviembre</h2><p>Vista central de delegaciones, responsables y capacitaciones registradas.</p></div><button class="button ghost" id="adminLogout" type="button">Cerrar sesión</button></div>
+      <section class="metrics admin-metrics">
+        <article><span>🗺️</span><div><small>Delegaciones con registro</small><strong id="adminDelegations">0 / 17</strong></div></article>
+        <article><span>📚</span><div><small>Capacitaciones</small><strong id="adminActivities">0</strong></div></article>
+        <article><span>👥</span><div><small>Proyección total</small><strong id="adminParticipants">0</strong></div></article>
+        <article><span>✅</span><div><small>Planes enviados</small><strong id="adminSubmitted">0</strong></div></article>
+      </section>
+      <section class="panel">
+        <div class="admin-filters"><label>Delegación<select id="adminDelegationFilter"><option value="">Todas</option></select></label><label>Estado<select id="adminStatusFilter"><option value="">Todos</option><option value="BORRADOR">Borrador</option><option value="ENVIADO">Enviado</option></select></label><label>Buscar<input id="adminSearch" type="search" placeholder="Tema, responsable o persona"></label><button class="button secondary" id="adminRefresh" type="button">Actualizar</button></div>
+        <div class="admin-list" id="adminList"></div>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="adminDialog" class="admin-dialog">
+    <form method="dialog" id="adminLoginForm">
+      <button class="dialog-close" value="cancel" aria-label="Cerrar">×</button>
+      <span class="lock">🔐</span><span class="eyebrow dark">Acceso restringido</span><h2>Consola Admin</h2><p>Ingresá las credenciales administrativas de la DDT.</p>
+      <label>Usuario<input id="adminUsername" autocomplete="username" required></label>
+      <label>Contraseña<input id="adminPassword" type="password" autocomplete="current-password" required></label>
+      <p class="form-error" id="adminError" role="alert"></p>
+      <button class="button primary full" type="submit">Ingresar</button>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <footer>SAT · INTUR · Dirección de Desarrollo Turístico · Plan de noviembre 2026</footer>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
