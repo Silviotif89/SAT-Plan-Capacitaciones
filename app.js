@@ -265,9 +265,9 @@
       statusRow.append(label('Cambiar estado del plan', select), adminButton('Guardar estado', async () => { if (select.value !== row.status && confirm(`¿Cambiar el estado de ${row.delegation} a ${select.value}?`)) await saveAdminRow(row, { status: select.value }, 'Estado actualizado.'); else if (select.value === row.status) toast('El estado no cambió.') }, 'button secondary'))
       body.append(statusRow)
       ;(row.activities || []).forEach((item, index) => {
-        const card = document.createElement('section'); card.className = 'admin-activity-card'
-        const heading = document.createElement('div'); heading.className = 'admin-activity-heading'
-        heading.append(text('strong', `${index + 1}. ${item.topic || 'Capacitación sin tema'}`), text('small', `${item.date || 'Sin fecha'} · ${item.projectedParticipants || 0} participantes`))
+        const card = document.createElement('details'); card.className = 'admin-activity-card'
+        const heading = document.createElement('summary'); heading.className = 'admin-activity-heading'
+        heading.append(text('strong', `${index + 1}. ${item.topic || 'Capacitación sin tema'}`))
         const fieldGrid = document.createElement('div'); fieldGrid.className = 'admin-all-fields'
         ADMIN_FIELDS.forEach(([key, title]) => fieldGrid.append(adminField(title, item[key])))
         const actions = document.createElement('div'); actions.className = 'admin-toolbar'
