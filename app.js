@@ -212,16 +212,44 @@
     catch (error) { toast(`No se pudo abrir el informe: ${error.message}`); adminRows = []; renderAdmin() }
   }
   function text(tag, value, className = '') { const node = document.createElement(tag); node.textContent = value; if (className) node.className = className; return node }
-  function renderAdmin() {
+  const ADMIN_FIELDS = [
+    ['activityType', 'Tipo', 'select', ACTIVITY_TYPES], ['topic', 'Tema de capacitación', 'text'],
+    ['date', 'Fecha principal', 'date'], ['additionalDates', 'Fechas adicionales', 'text'],
+    ['startTime', 'Hora inicio', 'time'], ['endTime', 'Hora final', 'time'],
+    ['municipality', 'Municipio', 'text'], ['location', 'Lugar', 'text'],
+    ['modality', 'Modalidad', 'select', MODALITIES], ['trainingProvider', 'Institución que imparte', 'select', PROVIDERS],
+    ['participatingInstitutions', 'Instituciones participantes', 'text'], ['responsible', 'Responsable', 'text'],
+    ['ddtFacilitator', 'Facilitador/a INTUR', 'text'], ['projectedParticipants', 'Proyección de participantes', 'number'],
+    ['observations', 'Observaciones', 'textarea']
+  ]
+  function adminButton(labelText, action, className = 'button ghost') {
+    const button = document.createElement('button'); button.type = 'button'; button.className = className; button.textContent = labelText; button.onclick = action; return button
+  }
+  function adminField(name, value) {
+    const cell = document.createElement('div'); cell.className = 'admin-data-field'
+    cell.append(text('small', name), text('b', String(value ?? '').trim() || '—')); return cell
+  }
+  async function saveAdminRow(row, updates, description) {
+    const session = getAdminSession()
+    if (!session) { toast('La sesión expiró. Iniciá sesión nuevamente.'); return false }
+    try {
+      // Control de concurrencia: no sobrescribir un plan modificado por la delegación u otro administrador.
+      const endpoint = `/rest/v1/${TABLE}?id=eq.${encodeURIComponent(row.id)}&updated_at=eq.${encodeURIComponent(row.updated_at)}&select=*`
+      const result = await api(endpoint, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(updates) }, session.accessToken)
+      if (!result?.length) { toast('No se guardó: el registro cambió desde que lo abriste. Presioná Actualizar antes de editar.'); return false }
+      Object.assign(row, result[0]); toast(description); renderAdmin(row.id); return true
+    } catch (error) { toast(`No se pudo guardar: ${error.message}`); return false }
+  }
+  function renderAdmin(openId = null) {
     const delegationFilter = $('adminDelegationFilter').value, statusFilter = $('adminStatusFilter').value, query = $('adminSearch').value.trim().toLocaleLowerCase('es')
     const filtered = adminRows.filter(row => (!delegationFilter || row.delegation === delegationFilter) && (!statusFilter || row.status === statusFilter) && (!query || JSON.stringify(row).toLocaleLowerCase('es').includes(query)))
     const totalActivities = adminRows.reduce((sum, row) => sum + (row.activities?.length || 0), 0)
     const totalParticipants = adminRows.reduce((sum, row) => sum + (row.activities || []).reduce((subtotal, item) => subtotal + (Number(item.projectedParticipants) || 0), 0), 0)
     $('adminDelegations').textContent = `${new Set(adminRows.map(row => row.delegation)).size} / 17`; $('adminActivities').textContent = totalActivities; $('adminParticipants').textContent = totalParticipants.toLocaleString('es-NI'); $('adminSubmitted').textContent = adminRows.filter(row => row.status === 'ENVIADO').length
-    const root = $('adminList'); root.replaceChildren()
+    const root = $('adminList'); const expandedIds = new Set([...root.querySelectorAll('details[open]')].map(el => el.dataset.rowId)); root.replaceChildren()
     if (!filtered.length) { root.append(text('div', 'No hay registros para los filtros seleccionados.', 'admin-empty')); return }
     filtered.forEach(row => {
-      const details = document.createElement('details'); details.className = 'admin-card'
+      const details = document.createElement('details'); details.className = 'admin-card'; details.dataset.rowId = row.id; details.open = row.id === openId || expandedIds.has(row.id)
       const summary = document.createElement('summary'); const count = row.activities?.length || 0; const projected = (row.activities || []).reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0)
       const identity = document.createElement('div'); identity.append(text('strong', row.delegation), text('small', row.region))
       const contact = document.createElement('div'); contact.append(text('strong', row.registrant_name), text('small', row.registrant_role || 'Cargo no indicado'))
@@ -230,9 +258,46 @@
       summary.append(identity, contact, totals, state)
       const body = document.createElement('div'); body.className = 'admin-detail'
       const contactGrid = document.createElement('div'); contactGrid.className = 'admin-contact'
-      ;[['Correo', row.registrant_email], ['Teléfono', row.registrant_phone], ['Última actualización', formatDateTime(row.updated_at)], ['Estado', row.status]].forEach(([name, value]) => { const cell = document.createElement('div'); cell.append(text('small', name), text('b', value || '—')); contactGrid.append(cell) })
+      ;[['Registró', row.registrant_name], ['Cargo', row.registrant_role], ['Correo', row.registrant_email], ['Teléfono', row.registrant_phone], ['Última actualización', formatDateTime(row.updated_at)], ['Estado', row.status]].forEach(([name, value]) => contactGrid.append(adminField(name, value)))
       body.append(contactGrid)
-      ;(row.activities || []).forEach(item => { const itemRow = document.createElement('div'); itemRow.className = 'admin-activity'; itemRow.append(text('span', item.date || 'Sin fecha'), text('strong', item.topic || 'Sin tema'), text('small', `${item.projectedParticipants || 0} participantes`)); body.append(itemRow) })
+      const statusRow = document.createElement('div'); statusRow.className = 'admin-toolbar'
+      const select = selectControl(['BORRADOR', 'ENVIADO'], row.status)
+      statusRow.append(label('Cambiar estado del plan', select), adminButton('Guardar estado', async () => { if (select.value !== row.status && confirm(`¿Cambiar el estado de ${row.delegation} a ${select.value}?`)) await saveAdminRow(row, { status: select.value }, 'Estado actualizado.'); else if (select.value === row.status) toast('El estado no cambió.') }, 'button secondary'))
+      body.append(statusRow)
+      ;(row.activities || []).forEach((item, index) => {
+        const card = document.createElement('section'); card.className = 'admin-activity-card'
+        const heading = document.createElement('div'); heading.className = 'admin-activity-heading'
+        heading.append(text('strong', `${index + 1}. ${item.topic || 'Capacitación sin tema'}`), text('small', `${item.date || 'Sin fecha'} · ${item.projectedParticipants || 0} participantes`))
+        const fieldGrid = document.createElement('div'); fieldGrid.className = 'admin-all-fields'
+        ADMIN_FIELDS.forEach(([key, title]) => fieldGrid.append(adminField(title, item[key])))
+        const actions = document.createElement('div'); actions.className = 'admin-toolbar'
+        const editButton = adminButton('Editar capacitación', () => {
+          const editor = document.createElement('div'); editor.className = 'admin-editor'
+          const draft = clone(item); const grid = document.createElement('div'); grid.className = 'activity-grid'
+          ADMIN_FIELDS.forEach(([key, title, kind, choices]) => {
+            let input
+            if (kind === 'select') { input = selectControl(choices, draft[key]); if (draft[key] && !choices.includes(draft[key])) input.add(new Option(draft[key], draft[key])) }
+            else if (kind === 'textarea') { input = document.createElement('textarea'); input.value = draft[key] || '' }
+            else { input = inputControl(draft[key], kind); if (key === 'date') { input.min = '2026-11-01'; input.max = '2026-11-30' }; if (kind === 'number') input.min = '0' }
+            input.oninput = () => { draft[key] = kind === 'number' ? Number(input.value) : input.value }
+            grid.append(label(title, input, '', key === 'observations' ? 'full' : ['topic', 'location', 'participatingInstitutions', 'additionalDates'].includes(key) ? 'wide' : ''))
+          })
+          const buttons = document.createElement('div'); buttons.className = 'admin-toolbar'
+          buttons.append(adminButton('Guardar cambios', async () => {
+            const required = ['topic','date','startTime','endTime','municipality','location','trainingProvider','participatingInstitutions','responsible']
+            if (required.some(key => !String(draft[key] || '').trim()) || !String(draft.date || '').startsWith('2026-11-') || Number(draft.projectedParticipants) <= 0 || (draft.trainingProvider === 'INTUR' && !String(draft.ddtFacilitator || '').trim())) { toast('Completá los campos obligatorios antes de guardar.'); return }
+            const activities = clone(row.activities); activities[index] = draft
+            await saveAdminRow(row, { activities }, 'Capacitación corregida en Supabase.')
+          }, 'button secondary'), adminButton('Cancelar', () => { editor.remove(); editButton.disabled = false }))
+          editor.append(grid, buttons); card.append(editor); editButton.disabled = true
+        }, 'button secondary')
+        const deleteButton = adminButton('Eliminar capacitación', async () => {
+          if (!confirm(`¿Eliminar definitivamente la capacitación “${item.topic || 'Sin tema'}” de ${row.delegation}? Esta acción afecta el registro en línea.`)) return
+          const activities = clone(row.activities); activities.splice(index, 1)
+          await saveAdminRow(row, { activities }, 'Capacitación eliminada de Supabase.')
+        }, 'button admin-danger')
+        actions.append(editButton, deleteButton); card.append(heading, fieldGrid, actions); body.append(card)
+      })
       details.append(summary, body); root.append(details)
     })
   }
