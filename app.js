@@ -12,7 +12,7 @@
     'Costa Caribe': ['RACCN', 'RACCS']
   }
   const DELEGATIONS = Object.values(REGIONS).flat()
-  const PROVIDERS = ['INTUR', 'INATEC', 'MIFIC', 'MINSA', 'SETEC', 'BOMBEROS', 'POLICÍA', 'Delegación Departamental', 'Otra institución']
+  const PROVIDERS = ['INTUR CENTRAL', 'INATEC', 'MIFIC', 'MINSA', 'SETEC', 'BOMBEROS', 'POLICÍA', 'Delegación Departamental', 'Otra institución']
   const ACTIVITY_TYPES = ['Capacitación', 'Taller', 'Curso', 'Seminario', 'Charla', 'Asistencia técnica', 'Otra']
   const MODALITIES = ['Presencial', 'Virtual', 'Híbrida']
   const configured = Boolean(CONFIG.supabaseUrl && CONFIG.publishableKey)
@@ -28,10 +28,18 @@
   let adminRows = []
 
   function regionFor(delegation) { return Object.keys(REGIONS).find(region => REGIONS[region].includes(delegation)) || 'Pacífico' }
+  function normalizeActivityProvider(activity) {
+    if (activity?.trainingProvider === 'INTUR') activity.trainingProvider = 'INTUR CENTRAL'
+    return activity
+  }
+  function migrateProviderNames(saved) {
+    Object.values(saved.plans || {}).forEach(savedPlan => (savedPlan.activities || []).forEach(normalizeActivityProvider))
+    return saved
+  }
   function loadStore() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
-      if (saved && saved.plans) return saved
+      if (saved && saved.plans) return migrateProviderNames(saved)
     } catch (_) { /* Se inicia un borrador limpio. */ }
     return { selectedDelegation: 'Chinandega', plans: {} }
   }
@@ -146,12 +154,8 @@
         label('Tipo de actividad', activityType), label('Tema de capacitación', topic, '', 'wide'), label('Fecha principal', date),
         label('Fechas adicionales', extraDates, 'Solo si la misma capacitación se realizará durante varios días.', 'wide'), label('Hora de inicio', start), label('Hora de finalización', end),
         label('Municipio', municipality), label('Lugar', location, '', 'wide'), label('Modalidad', modality),
-        label('Institución que imparte', provider), label('Participan', participants, 'Instituciones o actores que acompañan la actividad.', 'wide'), label('Responsable', responsible), label('Proyección de participantes', projection)
+        label('Institución que imparte', provider), label('Participan', participants, 'Instituciones o actores que acompañan la actividad.', 'wide'), label('Responsable', responsible), label('Proyección de participantes', projection, '', 'projection-only')
       )
-      if (item.trainingProvider === 'INTUR') {
-        const facilitator = bindActivityControl(inputControl(item.ddtFacilitator), item, 'ddtFacilitator'); facilitator.placeholder = 'Nombre de la persona facilitadora de INTUR'
-        grid.append(label('Facilitador/a INTUR', facilitator, '', 'wide'))
-      }
       grid.append(label('Observaciones', observations, '', 'full'))
       const actions = document.createElement('div'); actions.className = 'card-save'
       const save = document.createElement('button'); save.type = 'button'; save.className = 'button secondary'; save.textContent = 'Guardar actividad'; save.onclick = () => savePlan('BORRADOR')
@@ -168,8 +172,7 @@
     if (!current.activities.length) issues.push('al menos una capacitación')
     current.activities.forEach((item, index) => {
       const required = ['activityType', 'topic', 'date', 'startTime', 'endTime', 'municipality', 'location', 'modality', 'trainingProvider', 'participatingInstitutions', 'responsible']
-      const facilitator = String(item.ddtFacilitator || '').trim()
-      if (required.some(key => !String(item[key] || '').trim()) || !String(item.date || '').startsWith('2026-11-') || Number(item.projectedParticipants) <= 0 || (item.trainingProvider === 'INTUR' && !facilitator)) issues.push(`datos completos de la actividad ${index + 1}`)
+      if (required.some(key => !String(item[key] || '').trim()) || !String(item.date || '').startsWith('2026-11-') || Number(item.projectedParticipants) <= 0) issues.push(`datos completos de la actividad ${index + 1}`)
     })
     if (finalSubmission && !$('confirmed').checked) issues.push('confirmación final')
     return [...new Set(issues)]
@@ -208,7 +211,7 @@
   function getAdminSession() { try { const value = JSON.parse(sessionStorage.getItem(ADMIN_SESSION_KEY) || 'null'); return value && value.expiresAt > Date.now() ? value : null } catch (_) { return null } }
   async function showAdmin(token) {
     $('delegateView').hidden = true; $('adminView').hidden = false
-    try { adminRows = await api(`/rest/v1/${TABLE}?select=*&order=updated_at.desc`, {}, token); renderAdmin() }
+    try { adminRows = await api(`/rest/v1/${TABLE}?select=*&order=updated_at.desc`, {}, token); adminRows.forEach(row => (row.activities || []).forEach(normalizeActivityProvider)); renderAdmin() }
     catch (error) { toast(`No se pudo abrir el informe: ${error.message}`); adminRows = []; renderAdmin() }
   }
   function text(tag, value, className = '') { const node = document.createElement(tag); node.textContent = value; if (className) node.className = className; return node }
@@ -219,7 +222,7 @@
     ['municipality', 'Municipio', 'text'], ['location', 'Lugar', 'text'],
     ['modality', 'Modalidad', 'select', MODALITIES], ['trainingProvider', 'Institución que imparte', 'select', PROVIDERS],
     ['participatingInstitutions', 'Instituciones participantes', 'text'], ['responsible', 'Responsable', 'text'],
-    ['ddtFacilitator', 'Facilitador/a INTUR', 'text'], ['projectedParticipants', 'Proyección de participantes', 'number'],
+    ['ddtFacilitator', 'Facilitador/a INTUR CENTRAL', 'text'], ['projectedParticipants', 'Proyección de participantes', 'number'],
     ['observations', 'Observaciones', 'textarea']
   ]
   function adminButton(labelText, action, className = 'button ghost') {
@@ -285,7 +288,7 @@
           const buttons = document.createElement('div'); buttons.className = 'admin-toolbar'
           buttons.append(adminButton('Guardar cambios', async () => {
             const required = ['topic','date','startTime','endTime','municipality','location','trainingProvider','participatingInstitutions','responsible']
-            if (required.some(key => !String(draft[key] || '').trim()) || !String(draft.date || '').startsWith('2026-11-') || Number(draft.projectedParticipants) <= 0 || (draft.trainingProvider === 'INTUR' && !String(draft.ddtFacilitator || '').trim())) { toast('Completá los campos obligatorios antes de guardar.'); return }
+            if (required.some(key => !String(draft[key] || '').trim()) || !String(draft.date || '').startsWith('2026-11-') || Number(draft.projectedParticipants) <= 0 || (draft.trainingProvider === 'INTUR CENTRAL' && !String(draft.ddtFacilitator || '').trim())) { toast('Completá los campos obligatorios antes de guardar.'); return }
             const activities = clone(row.activities); activities[index] = draft
             await saveAdminRow(row, { activities }, 'Capacitación corregida en Supabase.')
           }, 'button secondary'), adminButton('Cancelar', () => { editor.remove(); editButton.disabled = false }))

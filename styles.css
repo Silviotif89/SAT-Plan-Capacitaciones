@@ -22,3 +22,7 @@
 .admin-activity-card[open] > summary.admin-activity-heading{padding-bottom:13px;border-bottom:1px solid #e4eaf2}
 .admin-activity-card[open] > summary.admin-activity-heading::after{transform:rotate(180deg)}
 .admin-activity-card > summary.admin-activity-heading:focus-visible{outline:3px solid #92c7f5;outline-offset:3px;border-radius:6px}
+
+/* El formulario territorial ya no muestra el facilitador; la proyección conserva un ancho cómodo. */
+.activity-grid .projection-only{grid-column:span 2;max-width:320px}
+@media(max-width:620px){.activity-grid .projection-only{grid-column:auto;max-width:none}}
