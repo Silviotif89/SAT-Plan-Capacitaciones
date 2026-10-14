@@ -189,7 +189,6 @@
       const required = ['activityType', 'topic', 'date', 'startTime', 'endTime', 'municipality', 'location', 'modality', 'trainingProvider', 'participatingInstitutions', 'responsible']
       if (required.some(key => !String(item[key] || '').trim()) || !String(item.date || '').startsWith('2026-11-') || Number(item.projectedParticipants) <= 0) issues.push(`datos completos de la actividad ${index + 1}`)
     })
-    if (finalSubmission && !$('confirmed').checked) issues.push('confirmación final')
     return [...new Set(issues)]
   }
   function remotePayload(current, status) {
