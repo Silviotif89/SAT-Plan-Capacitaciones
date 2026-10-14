@@ -93,7 +93,7 @@
     const map = { registrantName: 'registrantName', registrantRole: 'registrantRole', registrantEmail: 'registrantEmail', registrantPhone: 'registrantPhone' }
     Object.entries(map).forEach(([id, key]) => {
       $(id).value = plan()[key] || ''
-      $(id).oninput = event => { plan()[key] = event.target.value; saveLocalAndRender() }
+      $(id).oninput = event => { clearFieldError(event.target); plan()[key] = event.target.value; saveLocalAndRender() }
     })
   }
   function renderPlan() {
@@ -125,14 +125,14 @@
   function selectControl(values, value) { const select = document.createElement('select'); select.append(new Option('Seleccionar', ''), ...values.map(item => new Option(item, item))); select.value = value || ''; return select }
   function bindActivityControl(control, item, key, type = 'text') {
     control.dataset.field = key
-    control.addEventListener('input', () => { item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; item.draft = true; document.querySelector(`[data-add-after="${item.id}"]`)?.setAttribute('disabled', ''); saveLocalAndRender() })
-    control.addEventListener('change', () => { item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; item.draft = true; document.querySelector(`[data-add-after="${item.id}"]`)?.setAttribute('disabled', ''); saveLocalAndRender(); if (key === 'trainingProvider') renderActivities() })
+    control.addEventListener('input', () => { clearFieldError(control); item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; item.draft = true; document.querySelector(`[data-add-after="${item.id}"]`)?.setAttribute('disabled', ''); saveLocalAndRender() })
+    control.addEventListener('change', () => { clearFieldError(control); item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; item.draft = true; document.querySelector(`[data-add-after="${item.id}"]`)?.setAttribute('disabled', ''); saveLocalAndRender(); if (key === 'trainingProvider') renderActivities() })
     return control
   }
   function renderActivities() {
     const root = $('activities'); root.replaceChildren(); const current = plan(); $('emptyState').hidden = current.activities.length > 0
     current.activities.forEach((item, index) => {
-      const article = document.createElement('article'); article.className = 'activity-card'
+      const article = document.createElement('article'); article.className = 'activity-card'; article.dataset.activityId = item.id
       const head = document.createElement('div'); head.className = 'activity-head'
       const title = document.createElement('strong'); title.textContent = `Actividad ${index + 1}`
       const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Eliminar'
@@ -161,7 +161,7 @@
       )
       grid.append(label('Observaciones', observations, '', 'full'))
       const actions = document.createElement('div'); actions.className = 'card-save'
-      const save = document.createElement('button'); save.type = 'button'; save.className = 'button secondary'; save.textContent = 'Guardar actividad'; save.onclick = () => saveActivity(item)
+      const save = document.createElement('button'); save.type = 'button'; save.className = 'button secondary'; save.textContent = 'Guardar actividad'; save.dataset.saveActivity = item.id; save.onclick = () => saveActivity(item)
       actions.append(save)
       if (index === current.activities.length - 1) {
         const add = document.createElement('button'); add.type = 'button'; add.className = 'button ghost'; add.textContent = '＋ Agregar nueva actividad'; add.dataset.addAfter = item.id; add.disabled = Boolean(item.draft); add.title = item.draft ? 'Guardá esta actividad antes de agregar una nueva.' : ''; add.onclick = addActivity
@@ -177,19 +177,54 @@
     toast('Actividad guardada como borrador.')
     if (!validatePlan(false).length) await savePlan('BORRADOR')
   }
+  function clearFieldError(control) {
+    if (!control) return
+    const wrapper = control.closest('label') || control
+    wrapper.classList.remove('field-invalid'); control.removeAttribute('aria-invalid')
+    wrapper.querySelector('.field-error')?.remove()
+  }
+  function clearValidationErrors() {
+    document.querySelectorAll('.field-invalid').forEach(element => element.classList.remove('field-invalid'))
+    document.querySelectorAll('[aria-invalid="true"]').forEach(element => element.removeAttribute('aria-invalid'))
+    document.querySelectorAll('.field-error').forEach(element => element.remove())
+  }
+  function markFieldError(control, message) {
+    if (!control) return null
+    const wrapper = control.closest('label') || control
+    wrapper.classList.add('field-invalid'); control.setAttribute('aria-invalid', 'true')
+    if (!wrapper.querySelector('.field-error')) { const note = document.createElement('span'); note.className = 'field-error'; note.textContent = message; wrapper.append(note) }
+    return control
+  }
+  function activityControl(activityId, field) {
+    return [...document.querySelectorAll('[data-activity-id]')].find(card => card.dataset.activityId === activityId)?.querySelector(`[data-field="${field}"]`)
+  }
+  function showValidationIssues(issues) {
+    clearValidationErrors()
+    let first = null
+    issues.forEach(issue => { const target = markFieldError(issue.target?.(), issue.message); if (!first && target) first = target })
+    if (first) {
+      const focusFirstError = () => { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); first.focus({ preventScroll: true }) }
+      if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(focusFirstError)
+      else setTimeout(focusFirstError, 0)
+    }
+    $('saveMessage').textContent = 'Completá los campos resaltados en rojo antes de enviar el plan.'
+  }
   function validatePlan(finalSubmission = false) {
     const current = plan(); const issues = []
-    if (!current.registrantName.trim()) issues.push('nombre de quien registra')
-    if (!current.registrantRole.trim()) issues.push('cargo')
-    if (!/^\S+@\S+\.\S+$/.test(current.registrantEmail)) issues.push('correo válido')
-    if (!current.registrantPhone.trim()) issues.push('teléfono')
-    if (!current.activities.length) issues.push('al menos una capacitación')
+    const addIssue = (message, target) => issues.push({ message, target })
+    if (!current.registrantName.trim()) addIssue('Indicá el nombre de quien registra.', () => $('registrantName'))
+    if (!current.registrantRole.trim()) addIssue('Indicá el cargo.', () => $('registrantRole'))
+    if (!/^\S+@\S+\.\S+$/.test(current.registrantEmail)) addIssue('Ingresá un correo válido.', () => $('registrantEmail'))
+    if (!current.registrantPhone.trim()) addIssue('Indicá el teléfono.', () => $('registrantPhone'))
+    if (!current.activities.length) addIssue('Agregá al menos una capacitación.', () => $('addFirst'))
     current.activities.forEach((item, index) => {
-      if (item.draft) issues.push(`guardar la actividad ${index + 1}`)
+      if (item.draft) addIssue(`Guardá la actividad ${index + 1} antes de enviar.`, () => document.querySelector(`[data-save-activity="${item.id}"]`))
       const required = ['activityType', 'topic', 'date', 'startTime', 'endTime', 'municipality', 'location', 'modality', 'trainingProvider', 'participatingInstitutions', 'responsible']
-      if (required.some(key => !String(item[key] || '').trim()) || !String(item.date || '').startsWith('2026-11-') || Number(item.projectedParticipants) <= 0) issues.push(`datos completos de la actividad ${index + 1}`)
+      required.forEach(key => { if (!String(item[key] || '').trim()) addIssue(`Completá este dato de la actividad ${index + 1}.`, () => activityControl(item.id, key)) })
+      if (item.date && !String(item.date).startsWith('2026-11-')) addIssue('La fecha debe corresponder a noviembre de 2026.', () => activityControl(item.id, 'date'))
+      if (Number(item.projectedParticipants) <= 0) addIssue('Ingresá una proyección mayor que cero.', () => activityControl(item.id, 'projectedParticipants'))
     })
-    return [...new Set(issues)]
+    return issues
   }
   function remotePayload(current, status) {
     return { region: current.region, delegation: current.delegation, registrant_name: current.registrantName.trim(), registrant_role: current.registrantRole.trim(), registrant_email: current.registrantEmail.trim(), registrant_phone: current.registrantPhone.trim(), activities: clone(current.activities), status, edit_token: current.editToken, updated_at: now() }
@@ -197,7 +232,7 @@
   async function savePlan(status) {
     if (savingPlan) return
     const finalSubmission = status === 'ENVIADO'; const issues = validatePlan(finalSubmission)
-    if (issues.length) { toast(`Revisá: ${issues.join(', ')}.`); return }
+    if (issues.length) { showValidationIssues(issues); toast('Completá los campos resaltados en rojo.'); return }
     if (!configured) { persistLocal(); toast('Borrador local guardado. Falta conectar Supabase para registrar la información en línea.'); return }
     const current = plan(); const payload = remotePayload(current, status)
     savingPlan = true; const submit = $('submitPlan'); const submitText = submit.textContent
@@ -207,7 +242,7 @@
       if (current.remoteId) rows = await api(`/rest/v1/${TABLE}?id=eq.${encodeURIComponent(current.remoteId)}&select=*`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }, '', current.editToken)
       else rows = await api(`/rest/v1/${TABLE}?select=*`, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...payload, created_at: now() }) }, '', current.editToken)
       if (!rows?.length) throw new Error('No se confirmó el guardado. Verificá que el navegador conserve el acceso de edición.')
-      current.remoteId = rows[0].id; current.status = status; current.updatedAt = rows[0].updated_at || now(); persistLocal(); renderSummary()
+      current.remoteId = rows[0].id; current.status = status; current.updatedAt = rows[0].updated_at || now(); persistLocal(); clearValidationErrors(); renderSummary()
       $('saveMessage').textContent = status === 'ENVIADO' ? 'Plan enviado correctamente a la DDT.' : 'Borrador guardado en línea.'
       toast(status === 'ENVIADO' ? 'Plan enviado correctamente.' : 'Borrador guardado en línea.')
     } catch (error) {
