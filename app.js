@@ -319,23 +319,46 @@
       root.append(text('div', 'Aún no hay capacitaciones registradas con “INTUR CENTRAL” como institución que imparte.', 'assignment-empty'))
       return
     }
-    assignments.forEach(({ row, activity, index }) => {
-      const card = document.createElement('article'); card.className = 'assignment-card'
-      const heading = document.createElement('div'); heading.className = 'assignment-heading'
-      const date = activity.date ? new Intl.DateTimeFormat('es-NI', { dateStyle: 'medium' }).format(new Date(`${activity.date}T12:00:00`)) : 'Fecha pendiente'
-      heading.append(text('strong', activity.topic || 'Capacitación sin tema'), text('small', `${row.delegation} · ${date}${activity.municipality ? ` · ${activity.municipality}` : ''}`))
-      const selector = assignmentSelect(activity.ddtFacilitator)
-      const save = adminButton('Guardar asignación', async () => {
-        const activities = clone(row.activities); activities[index] = { ...activities[index], ddtFacilitator: selector.value }
-        save.disabled = true
-        const assigned = selector.value ? `Asignación guardada: ${selector.value}.` : 'Asignación retirada.'
-        const saved = await saveAdminRow(row, { activities }, assigned)
-        if (saved) renderAssignments(); else save.disabled = false
-      }, 'button secondary')
-      const controls = document.createElement('div'); controls.className = 'assignment-controls'
-      controls.append(label('Persona facilitadora DDT', selector), save)
-      card.append(heading, controls); root.append(card)
+    const heading = document.createElement('div'); heading.className = 'assignment-calendar-heading'
+    heading.append(text('strong', 'Noviembre 2026'), text('small', `${assignments.length} capacitación${assignments.length === 1 ? '' : 'es'} de INTUR CENTRAL por asignar o revisar.`))
+    const calendar = document.createElement('section'); calendar.className = 'assignment-calendar'; calendar.setAttribute('aria-label', 'Calendario de asignación DDT de noviembre de 2026')
+    ;['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].forEach(day => calendar.append(text('div', day, 'assignment-weekday')))
+    const byDate = new Map(), withoutDate = []
+    assignments.forEach(entry => {
+      if (/^2026-11-(0[1-9]|[12]\d|30)$/.test(entry.activity.date || '')) {
+        const entries = byDate.get(entry.activity.date) || []; entries.push(entry); byDate.set(entry.activity.date, entries)
+      } else withoutDate.push(entry)
     })
+    for (let day = 1; day <= 30; day += 1) {
+      const key = `2026-11-${String(day).padStart(2, '0')}`
+      const cell = document.createElement('div'); cell.className = 'assignment-day'
+      cell.append(text('span', String(day), 'assignment-day-number'))
+      ;(byDate.get(key) || []).forEach(entry => cell.append(assignmentCard(entry)))
+      calendar.append(cell)
+    }
+    root.append(heading, calendar)
+    if (withoutDate.length) {
+      const pending = document.createElement('section'); pending.className = 'assignment-pending'
+      pending.append(text('strong', 'Capacitaciones sin fecha válida de noviembre'))
+      withoutDate.forEach(entry => pending.append(assignmentCard(entry)))
+      root.append(pending)
+    }
+  }
+  function assignmentCard({ row, activity, index }) {
+    const card = document.createElement('article'); card.className = 'assignment-card'
+    const heading = document.createElement('div'); heading.className = 'assignment-heading'
+    heading.append(text('strong', activity.topic || 'Capacitación sin tema'), text('small', `${row.delegation}${activity.municipality ? ` · ${activity.municipality}` : ''}${activity.startTime ? ` · ${activity.startTime}` : ''}`))
+    const selector = assignmentSelect(activity.ddtFacilitator)
+    const save = adminButton(activity.ddtFacilitator ? 'Actualizar' : 'Asignar', async () => {
+      const activities = clone(row.activities); activities[index] = { ...activities[index], ddtFacilitator: selector.value }
+      save.disabled = true
+      const assigned = selector.value ? `Asignación guardada: ${selector.value}.` : 'Asignación retirada.'
+      const saved = await saveAdminRow(row, { activities }, assigned)
+      if (saved) renderAssignments(); else save.disabled = false
+    }, 'button secondary')
+    const controls = document.createElement('div'); controls.className = 'assignment-controls'
+    controls.append(label('Facilitador/a DDT', selector), save)
+    card.append(heading, controls); return card
   }
   function openAssignmentDialog() { renderAssignments(); $('assignmentDialog').showModal() }
   function renderAdmin(openId = null) {
