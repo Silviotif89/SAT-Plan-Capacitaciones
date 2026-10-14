@@ -15,6 +15,7 @@
   const PROVIDERS = ['INTUR CENTRAL', 'INATEC', 'MIFIC', 'MINSA', 'SETEC', 'BOMBEROS', 'POLICÍA', 'Delegación Departamental', 'Otra institución']
   const ACTIVITY_TYPES = ['Capacitación', 'Taller', 'Curso', 'Seminario', 'Charla', 'Asistencia técnica', 'Otra']
   const MODALITIES = ['Presencial', 'Virtual', 'Híbrida']
+  const DDT_FACILITATORS = ['Tania Rodríguez', 'Raúl Zambrana', 'Silvio Rodriguez', 'Karla Aburto', 'Andrea Guatemala', 'Patricia Hernández', 'Maria Guadalupe Munguia']
   const configured = Boolean(CONFIG.supabaseUrl && CONFIG.publishableKey)
   const $ = id => document.getElementById(id)
   const clone = value => JSON.parse(JSON.stringify(value))
@@ -303,6 +304,40 @@
       Object.assign(row, result[0]); toast(description); renderAdmin(row.id); return true
     } catch (error) { toast(`No se pudo guardar: ${error.message}`); return false }
   }
+  function isCentralTraining(activity) { return String(activity?.trainingProvider || '').trim().toUpperCase() === 'INTUR CENTRAL' }
+  function assignmentSelect(value) {
+    const select = document.createElement('select')
+    select.append(new Option('Sin asignar', ''), ...DDT_FACILITATORS.map(person => new Option(person, person)))
+    if (value && !DDT_FACILITATORS.includes(value)) select.add(new Option(value, value))
+    select.value = value || ''
+    return select
+  }
+  function renderAssignments() {
+    const root = $('assignmentList'); root.replaceChildren()
+    const assignments = adminRows.flatMap(row => (row.activities || []).map((activity, index) => ({ row, activity, index })).filter(({ activity }) => isCentralTraining(activity)))
+    if (!assignments.length) {
+      root.append(text('div', 'Aún no hay capacitaciones registradas con “INTUR CENTRAL” como institución que imparte.', 'assignment-empty'))
+      return
+    }
+    assignments.forEach(({ row, activity, index }) => {
+      const card = document.createElement('article'); card.className = 'assignment-card'
+      const heading = document.createElement('div'); heading.className = 'assignment-heading'
+      const date = activity.date ? new Intl.DateTimeFormat('es-NI', { dateStyle: 'medium' }).format(new Date(`${activity.date}T12:00:00`)) : 'Fecha pendiente'
+      heading.append(text('strong', activity.topic || 'Capacitación sin tema'), text('small', `${row.delegation} · ${date}${activity.municipality ? ` · ${activity.municipality}` : ''}`))
+      const selector = assignmentSelect(activity.ddtFacilitator)
+      const save = adminButton('Guardar asignación', async () => {
+        const activities = clone(row.activities); activities[index] = { ...activities[index], ddtFacilitator: selector.value }
+        save.disabled = true
+        const assigned = selector.value ? `Asignación guardada: ${selector.value}.` : 'Asignación retirada.'
+        const saved = await saveAdminRow(row, { activities }, assigned)
+        if (saved) renderAssignments(); else save.disabled = false
+      }, 'button secondary')
+      const controls = document.createElement('div'); controls.className = 'assignment-controls'
+      controls.append(label('Persona facilitadora DDT', selector), save)
+      card.append(heading, controls); root.append(card)
+    })
+  }
+  function openAssignmentDialog() { renderAssignments(); $('assignmentDialog').showModal() }
   function renderAdmin(openId = null) {
     const delegationFilter = $('adminDelegationFilter').value, statusFilter = $('adminStatusFilter').value, query = $('adminSearch').value.trim().toLocaleLowerCase('es')
     const filtered = adminRows.filter(row => (!delegationFilter || row.delegation === delegationFilter) && (!statusFilter || row.status === statusFilter) && (!query || JSON.stringify(row).toLocaleLowerCase('es').includes(query)))
@@ -378,6 +413,7 @@
     $('downloadExcel').onclick = event => exportPlan('excel', plan(), event.currentTarget)
     $('adminAccess').onclick = async () => { const session = getAdminSession(); if (session) await showAdmin(session.accessToken); else $('adminDialog').showModal() }
     $('adminLoginForm').onsubmit = adminLogin
+    $('assignDdtStaff').onclick = openAssignmentDialog
     $('adminLogout').onclick = () => { sessionStorage.removeItem(ADMIN_SESSION_KEY); $('adminView').hidden = true; $('delegateView').hidden = false; toast('Sesión administrativa cerrada.') }
     $('adminDownloadComplete').onclick = event => exportPlan('wordComplete', adminRows, event.currentTarget)
     setOptions($('adminDelegationFilter'), ['Todas', ...DELEGATIONS], 'Todas'); $('adminDelegationFilter').options[0].value = ''

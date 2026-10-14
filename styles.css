@@ -37,3 +37,12 @@
 
 /* Validación del formulario: cada dato pendiente queda visible y accesible. */
 label.field-invalid{color:#a21d3c}label.field-invalid input,label.field-invalid select,label.field-invalid textarea,.field-invalid.button{border-color:#d23455!important;background:#fff6f8!important;box-shadow:0 0 0 3px rgba(210,52,85,.13);text-decoration:underline;text-decoration-color:#d23455;text-underline-offset:4px}.field-error{display:block;color:#a21d3c;font-size:.68rem;font-weight:800;line-height:1.35}.field-invalid.button{outline:2px solid #d23455;outline-offset:2px}
+
+/* Asignación de facilitadores DDT para capacitaciones de INTUR CENTRAL */
+.assignment-dialog{width:min(820px,calc(100% - 28px));max-height:calc(100vh - 28px)}
+.assignment-dialog form{max-height:calc(100vh - 28px);overflow:auto}
+.assignment-list{display:grid;gap:11px;margin-top:18px}
+.assignment-card{border:1px solid #dbe5f0;border-radius:12px;padding:14px;background:linear-gradient(130deg,#f8fcff,#fff8fc)}
+.assignment-heading strong,.assignment-heading small{display:block}.assignment-heading strong{color:var(--navy);font-size:.9rem}.assignment-heading small{margin-top:4px;color:var(--muted);font-size:.74rem}
+.assignment-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;margin-top:12px}.assignment-controls label{margin:0}.assignment-empty{padding:22px;border:1px dashed #cbd9e9;border-radius:12px;color:var(--muted);text-align:center;font-size:.84rem}
+@media(max-width:620px){.assignment-controls{grid-template-columns:1fr}.assignment-controls .button{width:100%}}

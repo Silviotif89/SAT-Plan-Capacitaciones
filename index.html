@@ -57,7 +57,7 @@
     </section>
 
     <section id="adminView" class="admin-view" hidden>
-      <div class="admin-bar"><div><span class="eyebrow dark">Consola administrativa</span><h2>Seguimiento del Plan de Noviembre</h2><p>Vista central de delegaciones, responsables y capacitaciones registradas.</p></div><div class="admin-main-actions"><button class="button word" id="adminDownloadComplete" type="button" disabled>▣ Descargar plan completo noviembre</button><button class="button ghost" id="adminLogout" type="button">Cerrar sesión</button></div></div>
+      <div class="admin-bar"><div><span class="eyebrow dark">Consola administrativa</span><h2>Seguimiento del Plan de Noviembre</h2><p>Vista central de delegaciones, responsables y capacitaciones registradas.</p></div><div class="admin-main-actions"><button class="button word" id="adminDownloadComplete" type="button" disabled>▣ Descargar plan completo noviembre</button><button class="button secondary" id="assignDdtStaff" type="button">👥 Asignar personal DDT</button><button class="button ghost" id="adminLogout" type="button">Cerrar sesión</button></div></div>
       <section class="metrics admin-metrics">
         <article><span>🗺️</span><div><small>Delegaciones con registro</small><strong id="adminDelegations">0 / 17</strong></div></article>
         <article><span>📚</span><div><small>Capacitaciones</small><strong id="adminActivities">0</strong></div></article>
@@ -79,6 +79,14 @@
       <label>Contraseña<input id="adminPassword" type="password" autocomplete="current-password" required></label>
       <p class="form-error" id="adminError" role="alert"></p>
       <button class="button primary full" type="submit">Ingresar</button>
+    </form>
+  </dialog>
+
+  <dialog id="assignmentDialog" class="admin-dialog assignment-dialog">
+    <form method="dialog">
+      <button class="dialog-close" value="cancel" aria-label="Cerrar">×</button>
+      <span class="lock">👥</span><span class="eyebrow dark">Coordinación DDT</span><h2>Asignar personal DDT</h2><p>Seleccioná quién facilitará cada capacitación que imparte INTUR CENTRAL. La asignación se guarda en el plan de la delegación.</p>
+      <div class="assignment-list" id="assignmentList"></div>
     </form>
   </dialog>
 
