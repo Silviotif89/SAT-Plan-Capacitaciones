@@ -26,6 +26,7 @@
 
   let store = loadStore()
   let adminRows = []
+  let savingPlan = false
 
   function regionFor(delegation) { return Object.keys(REGIONS).find(region => REGIONS[region].includes(delegation)) || 'Pacífico' }
   function normalizeActivityProvider(activity) {
@@ -111,6 +112,7 @@
     $('activitiesHeading').textContent = `Capacitaciones de ${current.delegation}`
     $('planStatus').textContent = current.status === 'ENVIADO' ? 'Plan enviado' : 'Borrador'
     $('planStatus').classList.toggle('sent', current.status === 'ENVIADO')
+    $('downloadPanel').hidden = current.status !== 'ENVIADO' || !current.remoteId
   }
   function label(text, input, help = '', className = '') {
     const wrapper = document.createElement('label'); if (className) wrapper.className = className
@@ -181,10 +183,13 @@
     return { region: current.region, delegation: current.delegation, registrant_name: current.registrantName.trim(), registrant_role: current.registrantRole.trim(), registrant_email: current.registrantEmail.trim(), registrant_phone: current.registrantPhone.trim(), activities: clone(current.activities), status, edit_token: current.editToken, updated_at: now() }
   }
   async function savePlan(status) {
+    if (savingPlan) return
     const finalSubmission = status === 'ENVIADO'; const issues = validatePlan(finalSubmission)
     if (issues.length) { toast(`Revisá: ${issues.join(', ')}.`); return }
     if (!configured) { persistLocal(); toast('Borrador local guardado. Falta conectar Supabase para registrar la información en línea.'); return }
     const current = plan(); const payload = remotePayload(current, status)
+    savingPlan = true; const submit = $('submitPlan'); const draft = $('saveDraft'); const submitText = submit.textContent; const draftText = draft.textContent
+    submit.disabled = true; draft.disabled = true; submit.textContent = status === 'ENVIADO' ? 'Enviando plan…' : submitText; draft.textContent = status === 'BORRADOR' ? 'Guardando…' : draftText
     try {
       let rows
       if (current.remoteId) rows = await api(`/rest/v1/${TABLE}?id=eq.${encodeURIComponent(current.remoteId)}&select=*`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }, '', current.editToken)
@@ -196,7 +201,15 @@
     } catch (error) {
       const message = error.status === 409 ? 'Esta delegación ya tiene un plan registrado desde otro navegador. Contactá a la DDT para recuperar el acceso.' : `No se pudo guardar: ${error.message}`
       $('saveMessage').textContent = message; toast(message)
-    }
+    } finally { savingPlan = false; submit.disabled = false; draft.disabled = false; submit.textContent = submitText; draft.textContent = draftText }
+  }
+  async function exportPlan(format, sourcePlan, button) {
+    const exporter = window.SATPlanExports?.[format]
+    if (!exporter) { toast('No se pudo preparar la descarga. Actualizá la página e intentá nuevamente.'); return }
+    const label = button?.textContent
+    try { if (button) { button.disabled = true; button.textContent = 'Generando documento…' }; await exporter(sourcePlan); toast(`Plan mensual en ${format === 'word' ? 'Word' : 'Excel'} generado.`) }
+    catch (error) { toast(`No se pudo generar el documento: ${error.message}`) }
+    finally { if (button) setTimeout(() => { button.disabled = false; button.textContent = label }, 350) }
   }
   async function adminLogin(event) {
     event.preventDefault(); $('adminError').textContent = ''
@@ -249,6 +262,7 @@
     const totalActivities = adminRows.reduce((sum, row) => sum + (row.activities?.length || 0), 0)
     const totalParticipants = adminRows.reduce((sum, row) => sum + (row.activities || []).reduce((subtotal, item) => subtotal + (Number(item.projectedParticipants) || 0), 0), 0)
     $('adminDelegations').textContent = `${new Set(adminRows.map(row => row.delegation)).size} / 17`; $('adminActivities').textContent = totalActivities; $('adminParticipants').textContent = totalParticipants.toLocaleString('es-NI'); $('adminSubmitted').textContent = adminRows.filter(row => row.status === 'ENVIADO').length
+    $('adminDownloadComplete').disabled = !adminRows.length
     const root = $('adminList'); const expandedIds = new Set([...root.querySelectorAll('details[open]')].map(el => el.dataset.rowId)); root.replaceChildren()
     if (!filtered.length) { root.append(text('div', 'No hay registros para los filtros seleccionados.', 'admin-empty')); return }
     filtered.forEach(row => {
@@ -267,6 +281,12 @@
       const select = selectControl(['BORRADOR', 'ENVIADO'], row.status)
       statusRow.append(label('Cambiar estado del plan', select), adminButton('Guardar estado', async () => { if (select.value !== row.status && confirm(`¿Cambiar el estado de ${row.delegation} a ${select.value}?`)) await saveAdminRow(row, { status: select.value }, 'Estado actualizado.'); else if (select.value === row.status) toast('El estado no cambió.') }, 'button secondary'))
       body.append(statusRow)
+      if (row.status === 'ENVIADO') {
+        const downloads = document.createElement('div'); downloads.className = 'admin-downloads'
+        downloads.append(text('p', `Descargas disponibles para el plan enviado de ${row.delegation}.`))
+        downloads.append(adminButton('▣ Descargar plan en Word', () => exportPlan('word', { delegation: row.delegation, activities: row.activities || [] }, null), 'button word'), adminButton('▦ Descargar plan en Excel', () => exportPlan('excel', { delegation: row.delegation, activities: row.activities || [] }, null), 'button excel'))
+        body.append(downloads)
+      }
       ;(row.activities || []).forEach((item, index) => {
         const card = document.createElement('details'); card.className = 'admin-activity-card'
         const heading = document.createElement('summary'); heading.className = 'admin-activity-heading'
@@ -307,9 +327,12 @@
   function bindEvents() {
     $('addActivity').onclick = addActivity; $('addFirst').onclick = addActivity
     $('saveDraft').onclick = () => savePlan('BORRADOR'); $('submitPlan').onclick = () => savePlan('ENVIADO')
+    $('downloadWord').onclick = event => exportPlan('word', plan(), event.currentTarget)
+    $('downloadExcel').onclick = event => exportPlan('excel', plan(), event.currentTarget)
     $('adminAccess').onclick = async () => { const session = getAdminSession(); if (session) await showAdmin(session.accessToken); else $('adminDialog').showModal() }
     $('adminLoginForm').onsubmit = adminLogin
     $('adminLogout').onclick = () => { sessionStorage.removeItem(ADMIN_SESSION_KEY); $('adminView').hidden = true; $('delegateView').hidden = false; toast('Sesión administrativa cerrada.') }
+    $('adminDownloadComplete').onclick = event => exportPlan('wordComplete', adminRows, event.currentTarget)
     setOptions($('adminDelegationFilter'), ['Todas', ...DELEGATIONS], 'Todas'); $('adminDelegationFilter').options[0].value = ''
     $('adminDelegationFilter').onchange = renderAdmin; $('adminStatusFilter').onchange = renderAdmin; $('adminSearch').oninput = renderAdmin
     $('adminRefresh').onclick = async () => { const session = getAdminSession(); if (!session) return; await showAdmin(session.accessToken); toast('Informe actualizado.') }

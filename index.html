@@ -51,10 +51,14 @@
         <div><button class="button ghost" id="saveDraft" type="button">Guardar borrador</button><button class="button primary" id="submitPlan" type="button">Enviar plan a la DDT</button></div>
         <p id="saveMessage" aria-live="polite">Los cambios también se conservan temporalmente en este navegador.</p>
       </section>
+      <section class="panel download-panel" id="downloadPanel" hidden aria-live="polite">
+        <div><span class="eyebrow dark">Plan confirmado</span><h2>Tu plan fue enviado a la Dirección de Desarrollo Turístico</h2><p>Podés descargar los documentos del plan registrado. Se generan con la información confirmada para tu delegación.</p></div>
+        <div class="download-actions"><button class="button word" id="downloadWord" type="button">▣ Descargar plan mensual en Word</button><button class="button excel" id="downloadExcel" type="button">▦ Descargar plan mensual en Excel</button></div>
+      </section>
     </section>
 
     <section id="adminView" class="admin-view" hidden>
-      <div class="admin-bar"><div><span class="eyebrow dark">Consola administrativa</span><h2>Seguimiento del Plan de Noviembre</h2><p>Vista central de delegaciones, responsables y capacitaciones registradas.</p></div><button class="button ghost" id="adminLogout" type="button">Cerrar sesión</button></div>
+      <div class="admin-bar"><div><span class="eyebrow dark">Consola administrativa</span><h2>Seguimiento del Plan de Noviembre</h2><p>Vista central de delegaciones, responsables y capacitaciones registradas.</p></div><div class="admin-main-actions"><button class="button word" id="adminDownloadComplete" type="button" disabled>▣ Descargar plan completo noviembre</button><button class="button ghost" id="adminLogout" type="button">Cerrar sesión</button></div></div>
       <section class="metrics admin-metrics">
         <article><span>🗺️</span><div><small>Delegaciones con registro</small><strong id="adminDelegations">0 / 17</strong></div></article>
         <article><span>📚</span><div><small>Capacitaciones</small><strong id="adminActivities">0</strong></div></article>
@@ -82,6 +86,9 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer>SAT · INTUR · Dirección de Desarrollo Turístico · Plan de noviembre 2026</footer>
   <script src="config.js"></script>
+  <script src="vendor/xlsx-js-style.min.js"></script>
+  <script src="vendor/pizzip.min.js"></script>
+  <script src="plan-export.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
