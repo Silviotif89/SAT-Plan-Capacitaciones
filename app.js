@@ -305,11 +305,20 @@
     } catch (error) { toast(`No se pudo guardar: ${error.message}`); return false }
   }
   function isCentralTraining(activity) { return String(activity?.trainingProvider || '').trim().toUpperCase() === 'INTUR CENTRAL' }
+  function facilitatorKey(value) {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLocaleLowerCase('es-NI')
+  }
   function assignmentSelect(value) {
     const select = document.createElement('select')
     select.append(new Option('Sin asignar', ''), ...DDT_FACILITATORS.map(person => new Option(person, person)))
-    if (value && !DDT_FACILITATORS.includes(value)) select.add(new Option(value, value))
-    select.value = value || ''
+    const canonical = DDT_FACILITATORS.find(person => facilitatorKey(person) === facilitatorKey(value)) || value || ''
+    if (canonical && !DDT_FACILITATORS.includes(canonical)) select.add(new Option(canonical, canonical))
+    select.value = canonical
     return select
   }
   function renderAssignments() {
@@ -322,11 +331,16 @@
     const heading = document.createElement('div'); heading.className = 'assignment-calendar-heading'
     heading.append(text('strong', 'Noviembre 2026'), text('small', `${assignments.length} capacitación${assignments.length === 1 ? '' : 'es'} de INTUR CENTRAL por asignar o revisar.`))
     const inNovember = entry => /^2026-11-(0[1-9]|[12]\d|30)$/.test(entry.activity.date || '')
-    const assignedCount = DDT_FACILITATORS.reduce((counts, person) => ({ ...counts, [person]: assignments.filter(entry => inNovember(entry) && entry.activity.ddtFacilitator === person).length }), {})
+    const assignedCount = Object.fromEntries(DDT_FACILITATORS.map(person => [facilitatorKey(person), 0]))
+    assignments.filter(inNovember).forEach(entry => {
+      const key = facilitatorKey(entry.activity.ddtFacilitator)
+      if (Object.prototype.hasOwnProperty.call(assignedCount, key)) assignedCount[key] += 1
+    })
     const counter = document.createElement('section'); counter.className = 'assignment-counter'; counter.setAttribute('aria-label', 'Capacitaciones asignadas por facilitador DDT')
     DDT_FACILITATORS.forEach(person => {
       const badge = document.createElement('div'); badge.className = 'assignment-counter-item'
-      badge.append(text('span', person), text('strong', `${assignedCount[person]} capacitación${assignedCount[person] === 1 ? '' : 'es'}`))
+      const count = assignedCount[facilitatorKey(person)] || 0
+      badge.append(text('span', person), text('strong', `${count} capacitación${count === 1 ? '' : 'es'}`))
       counter.append(badge)
     })
     const calendar = document.createElement('section'); calendar.className = 'assignment-calendar'; calendar.setAttribute('aria-label', 'Calendario de asignación DDT de noviembre de 2026')
