@@ -321,11 +321,19 @@
     }
     const heading = document.createElement('div'); heading.className = 'assignment-calendar-heading'
     heading.append(text('strong', 'Noviembre 2026'), text('small', `${assignments.length} capacitación${assignments.length === 1 ? '' : 'es'} de INTUR CENTRAL por asignar o revisar.`))
+    const inNovember = entry => /^2026-11-(0[1-9]|[12]\d|30)$/.test(entry.activity.date || '')
+    const assignedCount = DDT_FACILITATORS.reduce((counts, person) => ({ ...counts, [person]: assignments.filter(entry => inNovember(entry) && entry.activity.ddtFacilitator === person).length }), {})
+    const counter = document.createElement('section'); counter.className = 'assignment-counter'; counter.setAttribute('aria-label', 'Capacitaciones asignadas por facilitador DDT')
+    DDT_FACILITATORS.forEach(person => {
+      const badge = document.createElement('div'); badge.className = 'assignment-counter-item'
+      badge.append(text('span', person), text('strong', `${assignedCount[person]} capacitación${assignedCount[person] === 1 ? '' : 'es'}`))
+      counter.append(badge)
+    })
     const calendar = document.createElement('section'); calendar.className = 'assignment-calendar'; calendar.setAttribute('aria-label', 'Calendario de asignación DDT de noviembre de 2026')
     ;['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].forEach(day => calendar.append(text('div', day, 'assignment-weekday')))
     const byDate = new Map(), withoutDate = []
     assignments.forEach(entry => {
-      if (/^2026-11-(0[1-9]|[12]\d|30)$/.test(entry.activity.date || '')) {
+      if (inNovember(entry)) {
         const entries = byDate.get(entry.activity.date) || []; entries.push(entry); byDate.set(entry.activity.date, entries)
       } else withoutDate.push(entry)
     })
@@ -336,7 +344,7 @@
       ;(byDate.get(key) || []).forEach(entry => cell.append(assignmentCard(entry)))
       calendar.append(cell)
     }
-    root.append(heading, calendar)
+    root.append(heading, counter, calendar)
     if (withoutDate.length) {
       const pending = document.createElement('section'); pending.className = 'assignment-pending'
       pending.append(text('strong', 'Capacitaciones sin fecha válida de noviembre'))
