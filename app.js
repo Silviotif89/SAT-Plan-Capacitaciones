@@ -259,6 +259,21 @@
     catch (error) { toast(`No se pudo generar el documento: ${error.message}`) }
     finally { if (button) setTimeout(() => { button.disabled = false; button.textContent = label }, 350) }
   }
+  function exportForSatCentral(button) {
+    const plans = adminRows.filter(row => row.status === 'ENVIADO')
+    const activities = plans.flatMap(row => (row.activities || []).filter(activity => !activity.draft).map(activity => ({
+      sourceId: activity.id, delegation: row.delegation, topic: String(activity.topic || '').trim(), activityType: activity.activityType || 'Capacitación',
+      date: activity.date || '', time: activity.startTime || '', municipality: activity.municipality || '', location: activity.location || '',
+      responsible: activity.responsible || '', institution: activity.participatingInstitutions || '', modality: activity.modality || 'Presencial',
+      trainingProvider: activity.trainingProvider === 'INTUR CENTRAL' ? 'DDT (INTUR)' : (activity.trainingProvider || ''),
+      ddtFacilitator: activity.ddtFacilitator || '', projectedParticipants: Number(activity.projectedParticipants) || 0,
+      observations: [activity.observations || '', activity.additionalDates ? `Fechas adicionales: ${activity.additionalDates}` : ''].filter(Boolean).join(' · '),
+    })))
+    const payload = { format: 'sat-intur-monthly-plan', version: 1, source: 'SAT Plan Capacitaciones', period: '2026-11', exportedAt: now(), activities }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), link = document.createElement('a')
+    link.href = url; link.download = 'SAT_Plan_Capacitaciones_noviembre_2026.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+    toast(`${activities.length} capacitaciones listas para importar en SAT Central.`)
+  }
   async function adminLogin(event) {
     event.preventDefault(); $('adminError').textContent = ''
     if (!configured) { $('adminError').textContent = 'Primero debe configurarse la conexión con Supabase.'; return }
@@ -390,6 +405,7 @@
     const totalParticipants = adminRows.reduce((sum, row) => sum + (row.activities || []).reduce((subtotal, item) => subtotal + (Number(item.projectedParticipants) || 0), 0), 0)
     $('adminDelegations').textContent = `${new Set(adminRows.map(row => row.delegation)).size} / 17`; $('adminActivities').textContent = totalActivities; $('adminParticipants').textContent = totalParticipants.toLocaleString('es-NI'); $('adminSubmitted').textContent = adminRows.filter(row => row.status === 'ENVIADO').length
     $('adminDownloadComplete').disabled = !adminRows.length
+    $('adminDownloadCentral').disabled = !adminRows.some(row => row.status === 'ENVIADO' && (row.activities || []).some(activity => !activity.draft))
     const root = $('adminList'); const expandedIds = new Set([...root.querySelectorAll('details[open]')].map(el => el.dataset.rowId)); root.replaceChildren()
     if (!filtered.length) { root.append(text('div', 'No hay registros para los filtros seleccionados.', 'admin-empty')); return }
     filtered.forEach(row => {
@@ -461,6 +477,7 @@
     $('assignDdtStaff').onclick = openAssignmentDialog
     $('adminLogout').onclick = () => { sessionStorage.removeItem(ADMIN_SESSION_KEY); $('adminView').hidden = true; $('delegateView').hidden = false; toast('Sesión administrativa cerrada.') }
     $('adminDownloadComplete').onclick = event => exportPlan('wordComplete', adminRows, event.currentTarget)
+    $('adminDownloadCentral').onclick = event => exportForSatCentral(event.currentTarget)
     setOptions($('adminDelegationFilter'), ['Todas', ...DELEGATIONS], 'Todas'); $('adminDelegationFilter').options[0].value = ''
     $('adminDelegationFilter').onchange = renderAdmin; $('adminStatusFilter').onchange = renderAdmin; $('adminSearch').oninput = renderAdmin
     $('adminRefresh').onclick = async () => { const session = getAdminSession(); if (!session) return; await showAdmin(session.accessToken); toast('Informe actualizado.') }
