@@ -31,3 +31,6 @@
 .button.word{background:linear-gradient(115deg,#1760b4,#1a87ce);color:#fff}.button.excel{background:linear-gradient(115deg,#12744a,#26a269);color:#fff}.button:disabled{cursor:not-allowed;opacity:.55}.download-panel{display:flex;align-items:center;justify-content:space-between;gap:20px;border-color:#bbdfce;background:linear-gradient(115deg,#f7fffb,#f3faff)}.download-panel h2{margin:4px 0;color:var(--navy);font-size:1.2rem}.download-panel p{margin:0;color:var(--muted);font-size:.82rem;line-height:1.5}.download-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.admin-downloads{padding:14px;background:#f2fbf7;border:1px solid #cae9dc;border-radius:11px;margin:14px 0}.admin-downloads p{margin:0 0 10px;color:#456775;font-size:.78rem}
 .admin-main-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
 @media(max-width:620px){.download-panel{flex-direction:column;align-items:stretch}.download-actions,.admin-main-actions{display:grid;grid-template-columns:1fr}}
+
+/* Acciones consecutivas del formulario de capacitación. */
+.card-save{gap:10px}.card-save .button{white-space:nowrap}@media(max-width:620px){.card-save{align-items:stretch;flex-direction:column}.card-save .button{width:100%}}

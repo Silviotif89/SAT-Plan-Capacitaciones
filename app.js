@@ -114,11 +114,6 @@
     $('planStatus').textContent = current.status === 'ENVIADO' ? 'Plan enviado' : 'Borrador'
     $('planStatus').classList.toggle('sent', current.status === 'ENVIADO')
     $('downloadPanel').hidden = current.status !== 'ENVIADO' || !current.remoteId
-    const addButton = $('addActivity')
-    const hasUnsavedActivity = current.activities.some(item => item.draft)
-    addButton.hidden = current.activities.length === 0
-    addButton.disabled = hasUnsavedActivity
-    addButton.title = hasUnsavedActivity ? 'Guardá la actividad que estás creando antes de agregar otra.' : ''
   }
   function label(text, input, help = '', className = '') {
     const wrapper = document.createElement('label'); if (className) wrapper.className = className
@@ -130,8 +125,8 @@
   function selectControl(values, value) { const select = document.createElement('select'); select.append(new Option('Seleccionar', ''), ...values.map(item => new Option(item, item))); select.value = value || ''; return select }
   function bindActivityControl(control, item, key, type = 'text') {
     control.dataset.field = key
-    control.addEventListener('input', () => { item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; item.draft = true; saveLocalAndRender() })
-    control.addEventListener('change', () => { item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; item.draft = true; saveLocalAndRender(); if (key === 'trainingProvider') renderActivities() })
+    control.addEventListener('input', () => { item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; item.draft = true; document.querySelector(`[data-add-after="${item.id}"]`)?.setAttribute('disabled', ''); saveLocalAndRender() })
+    control.addEventListener('change', () => { item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; item.draft = true; document.querySelector(`[data-add-after="${item.id}"]`)?.setAttribute('disabled', ''); saveLocalAndRender(); if (key === 'trainingProvider') renderActivities() })
     return control
   }
   function renderActivities() {
@@ -167,7 +162,12 @@
       grid.append(label('Observaciones', observations, '', 'full'))
       const actions = document.createElement('div'); actions.className = 'card-save'
       const save = document.createElement('button'); save.type = 'button'; save.className = 'button secondary'; save.textContent = 'Guardar actividad'; save.onclick = () => saveActivity(item)
-      actions.append(save); article.append(head, grid, actions); root.append(article)
+      actions.append(save)
+      if (index === current.activities.length - 1) {
+        const add = document.createElement('button'); add.type = 'button'; add.className = 'button ghost'; add.textContent = '＋ Agregar nueva actividad'; add.dataset.addAfter = item.id; add.disabled = Boolean(item.draft); add.title = item.draft ? 'Guardá esta actividad antes de agregar una nueva.' : ''; add.onclick = addActivity
+        actions.append(add)
+      }
+      article.append(head, grid, actions); root.append(article)
     })
   }
   function addActivity() { plan().activities.push(blankActivity()); saveLocalAndRender(); renderActivities(); document.querySelector('.activity-card:last-child')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
@@ -338,7 +338,7 @@
     })
   }
   function bindEvents() {
-    $('addActivity').onclick = addActivity; $('addFirst').onclick = addActivity
+    $('addFirst').onclick = addActivity
     $('submitPlan').onclick = () => savePlan('ENVIADO')
     $('downloadWord').onclick = event => exportPlan('word', plan(), event.currentTarget)
     $('downloadExcel').onclick = event => exportPlan('excel', plan(), event.currentTarget)
