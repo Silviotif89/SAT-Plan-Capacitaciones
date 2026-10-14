@@ -40,7 +40,7 @@
       </section>
 
       <section class="panel plan-panel">
-        <div class="panel-title plan-heading"><div><span class="eyebrow dark">Programación mensual</span><h2 id="activitiesHeading">Capacitaciones</h2><p>Una capacitación de varios días se registra una sola vez, indicando las fechas adicionales.</p></div><button class="button secondary" id="addActivity" type="button">＋ Agregar capacitación</button></div>
+        <div class="panel-title plan-heading"><div><span class="eyebrow dark">Programación mensual</span><h2 id="activitiesHeading">Capacitaciones</h2><p>Una capacitación de varios días se registra una sola vez, indicando las fechas adicionales.</p></div><button class="button secondary" id="addActivity" type="button" hidden>＋ Agregar otra actividad</button></div>
         <div class="guidance"><b>Información necesaria:</b> tema, fecha, horario, municipio, lugar, modalidad, quién imparte, quiénes participan, responsable y proyección. En actividades de varios días, agregá las demás fechas sin duplicar la capacitación.</div>
         <div id="activities"></div>
         <div class="empty" id="emptyState"><span>🗓️</span><h3>El plan está listo para comenzar</h3><p>Agregá la primera capacitación de tu delegación para noviembre de 2026.</p><button class="button secondary" type="button" id="addFirst">＋ Agregar primera capacitación</button></div>
@@ -48,8 +48,8 @@
 
       <section class="submit-panel">
         <label class="confirmation"><input type="checkbox" id="confirmed"><span>Confirmo que revisé fechas, responsables, instituciones y proyección de participantes.</span></label>
-        <div><button class="button ghost" id="saveDraft" type="button">Guardar borrador</button><button class="button primary" id="submitPlan" type="button">Enviar plan a la DDT</button></div>
-        <p id="saveMessage" aria-live="polite">Los cambios también se conservan temporalmente en este navegador.</p>
+        <div><button class="button primary" id="submitPlan" type="button">Enviar plan a la DDT</button></div>
+        <p id="saveMessage" aria-live="polite">Guardá cada actividad para conservarla como borrador antes de agregar otra.</p>
       </section>
       <section class="panel download-panel" id="downloadPanel" hidden aria-live="polite">
         <div><span class="eyebrow dark">Plan confirmado</span><h2>Tu plan fue enviado a la Dirección de Desarrollo Turístico</h2><p>Podés descargar los documentos del plan registrado. Se generan con la información confirmada para tu delegación.</p></div>

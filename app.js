@@ -21,7 +21,7 @@
   const makeId = () => crypto.randomUUID ? crypto.randomUUID() : `sat-${Date.now()}-${Math.random().toString(36).slice(2)}`
   const now = () => new Date().toISOString()
   const formatDateTime = value => value ? new Intl.DateTimeFormat('es-NI', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : 'Pendiente'
-  const blankActivity = () => ({ id: makeId(), activityType: 'Capacitación', topic: '', date: '2026-11-02', additionalDates: '', startTime: '08:00', endTime: '12:00', municipality: '', location: '', modality: 'Presencial', trainingProvider: '', ddtFacilitator: '', participatingInstitutions: '', responsible: '', projectedParticipants: 25, observations: '' })
+  const blankActivity = () => ({ id: makeId(), draft: true, activityType: 'Capacitación', topic: '', date: '2026-11-02', additionalDates: '', startTime: '08:00', endTime: '12:00', municipality: '', location: '', modality: 'Presencial', trainingProvider: '', ddtFacilitator: '', participatingInstitutions: '', responsible: '', projectedParticipants: 25, observations: '' })
   const blankPlan = delegation => ({ remoteId: '', editToken: makeId(), region: regionFor(delegation), delegation, registrantName: '', registrantRole: '', registrantEmail: '', registrantPhone: '', status: 'BORRADOR', activities: [], createdAt: now(), updatedAt: now() })
 
   let store = loadStore()
@@ -60,7 +60,7 @@
   }
   function saveLocalAndRender() {
     plan().updatedAt = now(); persistLocal(); renderSummary()
-    $('saveMessage').textContent = 'Borrador conservado en este navegador. Usá “Guardar borrador” para registrarlo en línea.'
+    $('saveMessage').textContent = 'Los cambios están en esta pantalla. Presioná “Guardar actividad” para conservar el borrador.'
   }
   function apiHeaders(token, editToken) {
     const headers = { apikey: CONFIG.publishableKey, Authorization: `Bearer ${token || CONFIG.publishableKey}`, 'Content-Type': 'application/json' }
@@ -77,7 +77,7 @@
   }
   function connectionBanner() {
     const box = $('connection'); box.classList.add('visible', configured ? 'ok' : 'warning')
-    box.textContent = configured ? '● Conexión central activa. Los botones Guardar y Enviar registran la información para la DDT.' : '⚠ Configuración pendiente: el formulario conserva borradores locales, pero todavía no puede reunir información de varias delegaciones. Completá config.js y Supabase antes de publicarlo.'
+    box.textContent = configured ? '● Conexión central activa. Guardar actividad conserva el borrador y Enviar plan lo registra para la DDT.' : '⚠ Configuración pendiente: el formulario conserva borradores locales, pero todavía no puede reunir información de varias delegaciones. Completá config.js y Supabase antes de publicarlo.'
   }
   function setupSelectors() {
     setOptions($('region'), Object.keys(REGIONS), regionFor(store.selectedDelegation))
@@ -105,14 +105,20 @@
   }
   function renderSummary() {
     const current = plan()
-    $('activityCount').textContent = current.activities.length
-    $('participantCount').textContent = current.activities.reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0).toLocaleString('es-NI')
+    const savedActivities = current.activities.filter(item => !item.draft)
+    $('activityCount').textContent = savedActivities.length
+    $('participantCount').textContent = savedActivities.reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0).toLocaleString('es-NI')
     $('delegationMetric').textContent = current.delegation
     $('lastSaved').textContent = formatDateTime(current.updatedAt)
     $('activitiesHeading').textContent = `Capacitaciones de ${current.delegation}`
     $('planStatus').textContent = current.status === 'ENVIADO' ? 'Plan enviado' : 'Borrador'
     $('planStatus').classList.toggle('sent', current.status === 'ENVIADO')
     $('downloadPanel').hidden = current.status !== 'ENVIADO' || !current.remoteId
+    const addButton = $('addActivity')
+    const hasUnsavedActivity = current.activities.some(item => item.draft)
+    addButton.hidden = current.activities.length === 0
+    addButton.disabled = hasUnsavedActivity
+    addButton.title = hasUnsavedActivity ? 'Guardá la actividad que estás creando antes de agregar otra.' : ''
   }
   function label(text, input, help = '', className = '') {
     const wrapper = document.createElement('label'); if (className) wrapper.className = className
@@ -124,8 +130,8 @@
   function selectControl(values, value) { const select = document.createElement('select'); select.append(new Option('Seleccionar', ''), ...values.map(item => new Option(item, item))); select.value = value || ''; return select }
   function bindActivityControl(control, item, key, type = 'text') {
     control.dataset.field = key
-    control.addEventListener('input', () => { item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; saveLocalAndRender() })
-    control.addEventListener('change', () => { item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; saveLocalAndRender(); if (key === 'trainingProvider') renderActivities() })
+    control.addEventListener('input', () => { item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; item.draft = true; saveLocalAndRender() })
+    control.addEventListener('change', () => { item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; item.draft = true; saveLocalAndRender(); if (key === 'trainingProvider') renderActivities() })
     return control
   }
   function renderActivities() {
@@ -160,11 +166,17 @@
       )
       grid.append(label('Observaciones', observations, '', 'full'))
       const actions = document.createElement('div'); actions.className = 'card-save'
-      const save = document.createElement('button'); save.type = 'button'; save.className = 'button secondary'; save.textContent = 'Guardar actividad'; save.onclick = () => savePlan('BORRADOR')
+      const save = document.createElement('button'); save.type = 'button'; save.className = 'button secondary'; save.textContent = 'Guardar actividad'; save.onclick = () => saveActivity(item)
       actions.append(save); article.append(head, grid, actions); root.append(article)
     })
   }
   function addActivity() { plan().activities.push(blankActivity()); saveLocalAndRender(); renderActivities(); document.querySelector('.activity-card:last-child')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+  async function saveActivity(item) {
+    item.draft = false; plan().status = 'BORRADOR'; plan().updatedAt = now(); persistLocal(); renderActivities(); renderSummary()
+    $('saveMessage').textContent = 'Actividad guardada como borrador. Ya podés agregar otra actividad o continuar con el plan.'
+    toast('Actividad guardada como borrador.')
+    if (!validatePlan(false).length) await savePlan('BORRADOR')
+  }
   function validatePlan(finalSubmission = false) {
     const current = plan(); const issues = []
     if (!current.registrantName.trim()) issues.push('nombre de quien registra')
@@ -173,6 +185,7 @@
     if (!current.registrantPhone.trim()) issues.push('teléfono')
     if (!current.activities.length) issues.push('al menos una capacitación')
     current.activities.forEach((item, index) => {
+      if (item.draft) issues.push(`guardar la actividad ${index + 1}`)
       const required = ['activityType', 'topic', 'date', 'startTime', 'endTime', 'municipality', 'location', 'modality', 'trainingProvider', 'participatingInstitutions', 'responsible']
       if (required.some(key => !String(item[key] || '').trim()) || !String(item.date || '').startsWith('2026-11-') || Number(item.projectedParticipants) <= 0) issues.push(`datos completos de la actividad ${index + 1}`)
     })
@@ -188,8 +201,8 @@
     if (issues.length) { toast(`Revisá: ${issues.join(', ')}.`); return }
     if (!configured) { persistLocal(); toast('Borrador local guardado. Falta conectar Supabase para registrar la información en línea.'); return }
     const current = plan(); const payload = remotePayload(current, status)
-    savingPlan = true; const submit = $('submitPlan'); const draft = $('saveDraft'); const submitText = submit.textContent; const draftText = draft.textContent
-    submit.disabled = true; draft.disabled = true; submit.textContent = status === 'ENVIADO' ? 'Enviando plan…' : submitText; draft.textContent = status === 'BORRADOR' ? 'Guardando…' : draftText
+    savingPlan = true; const submit = $('submitPlan'); const submitText = submit.textContent
+    submit.disabled = true; submit.textContent = status === 'ENVIADO' ? 'Enviando plan…' : submitText
     try {
       let rows
       if (current.remoteId) rows = await api(`/rest/v1/${TABLE}?id=eq.${encodeURIComponent(current.remoteId)}&select=*`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }, '', current.editToken)
@@ -201,7 +214,7 @@
     } catch (error) {
       const message = error.status === 409 ? 'Esta delegación ya tiene un plan registrado desde otro navegador. Contactá a la DDT para recuperar el acceso.' : `No se pudo guardar: ${error.message}`
       $('saveMessage').textContent = message; toast(message)
-    } finally { savingPlan = false; submit.disabled = false; draft.disabled = false; submit.textContent = submitText; draft.textContent = draftText }
+    } finally { savingPlan = false; submit.disabled = false; submit.textContent = submitText }
   }
   async function exportPlan(format, sourcePlan, button) {
     const exporter = window.SATPlanExports?.[format]
@@ -326,7 +339,7 @@
   }
   function bindEvents() {
     $('addActivity').onclick = addActivity; $('addFirst').onclick = addActivity
-    $('saveDraft').onclick = () => savePlan('BORRADOR'); $('submitPlan').onclick = () => savePlan('ENVIADO')
+    $('submitPlan').onclick = () => savePlan('ENVIADO')
     $('downloadWord').onclick = event => exportPlan('word', plan(), event.currentTarget)
     $('downloadExcel').onclick = event => exportPlan('excel', plan(), event.currentTarget)
     $('adminAccess').onclick = async () => { const session = getAdminSession(); if (session) await showAdmin(session.accessToken); else $('adminDialog').showModal() }
