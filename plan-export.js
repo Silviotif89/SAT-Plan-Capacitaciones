@@ -85,15 +85,19 @@
     return zip.generate({ type: 'uint8array', compression: 'DEFLATE' })
   }
   const columnLetter = index => String.fromCharCode(65 + index)
-  const durationLabel = item => {
-    const toMinutes = value => {
-      const match = /^(\d{1,2}):(\d{2})$/.exec(String(value || ''))
-      return match ? Number(match[1]) * 60 + Number(match[2]) : null
-    }
-    const start = toMinutes(item.startTime), end = toMinutes(item.endTime)
-    if (start === null || end === null || end < start) return ''
-    const minutes = end - start, hours = Math.floor(minutes / 60), remainder = minutes % 60
-    return [hours ? `${hours} h` : '', remainder ? `${remainder} min` : ''].filter(Boolean).join(' ')
+  const timeLabel = value => {
+    const raw = String(value || '').trim()
+    const match = /^(\d{1,2}):(\d{2})$/.exec(raw)
+    if (!match) return raw
+    const hour = Number(match[1]), minute = match[2]
+    if (hour > 23 || Number(minute) > 59) return raw
+    return `${String(hour % 12 || 12).padStart(2, '0')}:${minute} ${hour < 12 ? 'a. m.' : 'p. m.'}`
+  }
+  const scheduleLabel = item => [timeLabel(item.startTime), timeLabel(item.endTime)].filter(Boolean).join(' – ')
+  const facilitatorLabel = item => {
+    const provider = String(item.trainingProvider || '').trim()
+    const normalizedProvider = provider.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
+    return normalizedProvider === 'INTUR CENTRAL' ? (item.ddtFacilitator || '') : provider
   }
   const dateCell = item => [item.date ? dateLabel(item.date) : '', String(item.additionalDates || '').trim()].filter(Boolean).join('; ')
   const observationCell = item => [
@@ -131,8 +135,8 @@
       .filter(item => !item.draft && String(item.date || '').startsWith('2026-11-'))
       .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')))
       .map((item, index) => [
-        index + 1, String(item.delegation || plan.delegation || '').toUpperCase(), item.municipality || '', item.topic || '', durationLabel(item), '', '', '', '', '', dateCell(item),
-        item.projectedParticipants === '' || item.projectedParticipants == null || !Number.isFinite(Number(item.projectedParticipants)) ? '' : Number(item.projectedParticipants), item.ddtFacilitator || '', observationCell(item),
+        index + 1, String(item.delegation || plan.delegation || '').toUpperCase(), item.municipality || '', item.topic || '', scheduleLabel(item), '', '', '', '', '', dateCell(item),
+        item.projectedParticipants === '' || item.projectedParticipants == null || !Number.isFinite(Number(item.projectedParticipants)) ? '' : Number(item.projectedParticipants), facilitatorLabel(item), observationCell(item),
       ])
     if (!rows.length) throw new Error('No hay capacitaciones guardadas en Supabase para noviembre de 2026.')
     const sourceRows = sheetDataMatch[1]
@@ -153,11 +157,11 @@
       const borderId = Number(/\bborderId="(\d+)"/.exec(style)?.[1] || 0)
       const currentBorder = borders[borderId] || ''
       if (['left', 'right', 'top', 'bottom'].every(side => new RegExp(`<${side}\\b[^>]*\\bstyle=`).test(currentBorder))) return String(styleId)
-      const updatedStyle = style.replace(/<xf\b([^>]*)>/, (_, attributes) => {
+      const updatedStyle = style.replace(/<xf\b([^>]*?)(\/?)>/, (_, attributes, selfClosing) => {
         let nextAttributes = attributes.replace(/\bborderId="\d+"/, `borderId="${gridBorderId}"`).replace(/\s+\/$/, '')
         if (!/\bborderId=/.test(nextAttributes)) nextAttributes += ` borderId="${gridBorderId}"`
         if (!/\bapplyBorder=/.test(nextAttributes)) nextAttributes += ' applyBorder="1"'
-        return `<xf${nextAttributes}>`
+        return `<xf${nextAttributes}${selfClosing}>`
       })
       const nextId = cellStyles.length + addedStyles.length
       addedStyles.push(updatedStyle)
@@ -172,6 +176,8 @@
     }
     const headerRows = [...sourceRows.matchAll(/<row\b[^>]*\br="([123])"[^>]*>[\s\S]*?<\/row>/g)].map(match => match[0])
     if (headerRows.length !== 3) throw new Error('La plantilla no contiene sus tres filas de encabezado.')
+    const columnHeadings = headerRows.findIndex(row => /<row\b[^>]*\br="3"/.test(row))
+    headerRows[columnHeadings] = headerRows[columnHeadings].replace(/<c\b([^>]*\br="E3"[^>]*)>[\s\S]*?<\/c>/, (_, attributes) => `<c${attributes.replace(/\s+t="[^"]*"/, '')} t="inlineStr"><is><t>Horario</t></is></c>`)
     const dataRows = rows.map((values, rowIndex) => {
       const rowNumber = rowIndex + 4
       const cells = values.map((value, index) => {
