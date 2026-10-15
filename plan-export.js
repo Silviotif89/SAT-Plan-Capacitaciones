@@ -131,16 +131,20 @@
     if (!sheetXml || !workbookXml || !stylesXml) throw new Error('La plantilla Excel no contiene la hoja y estilos esperados.')
     const sheetDataMatch = /<sheetData\b[^>]*>([\s\S]*?)<\/sheetData>/.exec(sheetXml)
     if (!sheetDataMatch) throw new Error('La plantilla Excel no contiene la tabla principal.')
-    const rows = [...(plan.activities || [])]
+    const eligibleActivities = [...(plan.activities || [])]
       .filter(item => !item.draft && String(item.date || '').startsWith('2026-11-'))
-      .sort((a, b) => {
+    const chronologicalActivities = [...eligibleActivities]
+      .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')) || String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' }))
+    const generalPlanNumbers = new Map(chronologicalActivities.map((item, index) => [item, index + 1]))
+    const orderedActivities = [...eligibleActivities].sort((a, b) => {
         const delegationOrder = plan.complete
           ? String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' })
           : 0
         return delegationOrder || String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || ''))
       })
+    const rows = orderedActivities
       .map((item, index) => [
-        index + 1, String(item.delegation || plan.delegation || '').toUpperCase(), item.municipality || '', item.topic || '', scheduleLabel(item), '', '', '', '', '', dateCell(item),
+        plan.complete ? generalPlanNumbers.get(item) : index + 1, String(item.delegation || plan.delegation || '').toUpperCase(), item.municipality || '', item.topic || '', scheduleLabel(item), '', '', '', '', '', dateCell(item),
         item.projectedParticipants === '' || item.projectedParticipants == null || !Number.isFinite(Number(item.projectedParticipants)) ? '' : Number(item.projectedParticipants), facilitatorLabel(item), observationCell(item),
       ])
     if (!rows.length) throw new Error('No hay capacitaciones guardadas en Supabase para noviembre de 2026.')
