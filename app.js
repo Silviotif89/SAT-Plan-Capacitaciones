@@ -313,13 +313,21 @@
     // Cada delegación es un único registro; activities contiene el arreglo completo sin paginación de filas.
     return { id: rows[0].id, delegation: rows[0].delegation, status: rows[0].status, activities: rows[0].activities || [] }
   }
+  async function loadPlansForExcel() {
+    if (!configured) throw new Error('No hay conexión con Supabase para consultar los planes enviados.')
+    const adminSession = getAdminSession()
+    if (!adminSession) throw new Error('La sesión administrativa expiró. Iniciá sesión nuevamente.')
+    const rows = await api(`/rest/v1/${TABLE}?status=eq.ENVIADO&select=*&order=delegation.asc`, {}, adminSession.accessToken)
+    if (!Array.isArray(rows) || !rows.length) throw new Error('No hay planes enviados disponibles para generar el Excel completo.')
+    return rows
+  }
   async function exportPlan(format, sourcePlan, button) {
     const exporter = window.SATPlanExports?.[format]
     if (!exporter) { toast('No se pudo preparar la descarga. Actualizá la página e intentá nuevamente.'); return }
     const label = button?.textContent
     try {
       if (button) { button.disabled = true; button.textContent = 'Generando documento…' }
-      const exportSource = format === 'excel' ? await loadPlanForExcel(sourcePlan) : sourcePlan
+      const exportSource = format === 'excel' ? await loadPlanForExcel(sourcePlan) : format === 'excelComplete' ? await loadPlansForExcel() : sourcePlan
       await exporter(exportSource); toast(`Plan mensual en ${format === 'word' ? 'Word' : 'Excel'} generado.`)
     }
     catch (error) { toast(`No se pudo generar el documento: ${error.message}`) }
@@ -471,6 +479,7 @@
     const totalParticipants = adminRows.reduce((sum, row) => sum + (row.activities || []).reduce((subtotal, item) => subtotal + (Number(item.projectedParticipants) || 0), 0), 0)
     $('adminDelegations').textContent = `${new Set(adminRows.map(row => row.delegation)).size} / 17`; $('adminActivities').textContent = totalActivities; $('adminParticipants').textContent = totalParticipants.toLocaleString('es-NI'); $('adminSubmitted').textContent = adminRows.filter(row => row.status === 'ENVIADO').length
     $('adminDownloadComplete').disabled = !adminRows.length
+    $('adminDownloadExcelComplete').disabled = !adminRows.some(row => row.status === 'ENVIADO' && (row.activities || []).some(activity => !activity.draft && String(activity.date || '').startsWith('2026-11-')))
     $('adminDownloadCentral').disabled = !adminRows.some(row => row.status === 'ENVIADO' && (row.activities || []).some(activity => !activity.draft))
     const root = $('adminList'); const expandedIds = new Set([...root.querySelectorAll('details[open]')].map(el => el.dataset.rowId)); root.replaceChildren()
     if (!filtered.length) { root.append(text('div', 'No hay registros para los filtros seleccionados.', 'admin-empty')); return }
@@ -544,6 +553,7 @@
     $('assignDdtStaff').onclick = openAssignmentDialog
     $('adminLogout').onclick = () => { sessionStorage.removeItem(ADMIN_SESSION_KEY); $('adminView').hidden = true; $('delegateView').hidden = false; toast('Sesión administrativa cerrada.') }
     $('adminDownloadComplete').onclick = event => exportPlan('wordComplete', adminRows, event.currentTarget)
+    $('adminDownloadExcelComplete').onclick = event => exportPlan('excelComplete', adminRows, event.currentTarget)
     $('adminDownloadCentral').onclick = event => exportForSatCentral(event.currentTarget)
     setOptions($('adminDelegationFilter'), ['Todas', ...DELEGATIONS], 'Todas'); $('adminDelegationFilter').options[0].value = ''
     $('adminDelegationFilter').onchange = renderAdmin; $('adminStatusFilter').onchange = renderAdmin; $('adminSearch').oninput = renderAdmin
