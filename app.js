@@ -28,6 +28,8 @@
   let store = loadStore()
   let adminRows = []
   let savingPlan = false
+  let editingActivityId = null
+  let editingSnapshot = null
 
   function regionFor(delegation) { return Object.keys(REGIONS).find(region => REGIONS[region].includes(delegation)) || 'Pacífico' }
   function normalizeActivityProvider(activity) {
@@ -84,10 +86,11 @@
     setOptions($('region'), Object.keys(REGIONS), regionFor(store.selectedDelegation))
     setOptions($('delegation'), REGIONS[$('region').value], store.selectedDelegation)
     $('region').addEventListener('change', () => {
+      editingActivityId = null; editingSnapshot = null
       const first = REGIONS[$('region').value][0]
       store.selectedDelegation = first; setOptions($('delegation'), REGIONS[$('region').value], first); ensureSelectedPlan(); renderPlan()
     })
-    $('delegation').addEventListener('change', () => { store.selectedDelegation = $('delegation').value; ensureSelectedPlan(); renderPlan() })
+    $('delegation').addEventListener('change', () => { editingActivityId = null; editingSnapshot = null; store.selectedDelegation = $('delegation').value; ensureSelectedPlan(); renderPlan() })
   }
   function ensureSelectedPlan() { plan(); persistLocal() }
   function bindProfile() {
@@ -110,6 +113,7 @@
     $('activityCount').textContent = savedActivities.length
     $('participantCount').textContent = savedActivities.reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0).toLocaleString('es-NI')
     $('delegationMetric').textContent = current.delegation
+    $('headerDelegationName').textContent = current.delegation
     $('lastSaved').textContent = formatDateTime(current.updatedAt)
     $('activitiesHeading').textContent = `Capacitaciones de ${current.delegation}`
     $('planStatus').textContent = current.status === 'ENVIADO' ? 'Plan enviado' : 'Borrador'
@@ -126,18 +130,57 @@
   function selectControl(values, value) { const select = document.createElement('select'); select.append(new Option('Seleccionar', ''), ...values.map(item => new Option(item, item))); select.value = value || ''; return select }
   function bindActivityControl(control, item, key, type = 'text') {
     control.dataset.field = key
-    control.addEventListener('input', () => { clearFieldError(control); item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; item.draft = true; document.querySelector(`[data-add-after="${item.id}"]`)?.setAttribute('disabled', ''); saveLocalAndRender() })
-    control.addEventListener('change', () => { clearFieldError(control); item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; item.draft = true; document.querySelector(`[data-add-after="${item.id}"]`)?.setAttribute('disabled', ''); saveLocalAndRender(); if (key === 'trainingProvider') renderActivities() })
+    const update = () => { clearFieldError(control); item[key] = type === 'number' ? Math.max(0, Number(control.value) || 0) : control.value; item.draft = true; document.querySelector(`[data-add-after="${item.id}"]`)?.setAttribute('disabled', ''); $('addActivityTop').disabled = true; saveLocalAndRender() }
+    control.addEventListener('input', update)
+    control.addEventListener('change', () => { update(); if (key === 'trainingProvider') renderActivities() })
     return control
+  }
+  function formatActivityDate(value) {
+    if (!value) return '—'
+    const [year, month, day] = String(value).split('-')
+    return year && month && day ? `${day}/${month}/${year}` : value
+  }
+  function formatActivityTime(value) {
+    if (!value) return '—'
+    const [hourText, minuteText = '00'] = String(value).split(':')
+    const hour = Number(hourText); if (!Number.isFinite(hour)) return value
+    return `${String(hour % 12 || 12).padStart(2, '0')}:${minuteText} ${hour < 12 ? 'a. m.' : 'p. m.'}`
+  }
+  function renderActivityTable(root, items, current) {
+    const visibleItems = items.filter(item => item.id !== editingActivityId)
+    if (!visibleItems.length) return
+    const wrapper = document.createElement('div'); wrapper.className = 'activities-table-wrap'
+    const table = document.createElement('table'); table.className = 'activities-table'
+    const icon = pathData => { const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '2'); svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round'); const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', pathData); svg.append(path); return svg }
+    const headers = ['#', 'Tema de capacitación', 'Fecha', 'Horario', 'Municipio', 'Lugar', 'Institución que imparte', 'Proyección', 'Estado', 'Acciones']
+    const thead = document.createElement('thead'); const headerRow = document.createElement('tr')
+    headers.forEach(value => headerRow.append(text('th', value))); thead.append(headerRow)
+    const tbody = document.createElement('tbody')
+    visibleItems.forEach((item, index) => {
+      const row = document.createElement('tr')
+      const values = [String(index + 1), item.topic || 'Sin tema', formatActivityDate(item.date), `${formatActivityTime(item.startTime)} – ${formatActivityTime(item.endTime)}`, item.municipality || '—', item.location || '—', item.trainingProvider || '—', Number(item.projectedParticipants || 0).toLocaleString('es-NI'), 'Registrada']
+      values.forEach((value, cellIndex) => { const cell = document.createElement('td'); cell.dataset.label = headers[cellIndex]; if (cellIndex === 8) { const badge = text('span', value, 'saved-pill'); cell.append(badge) } else cell.textContent = value; row.append(cell) })
+      const actions = document.createElement('td'); actions.dataset.label = 'Acciones'; actions.className = 'table-actions'
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'table-action edit'; edit.append(icon('M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z')); edit.title = `Editar ${item.topic || 'capacitación'}`; edit.setAttribute('aria-label', edit.title)
+      edit.onclick = () => { editingActivityId = item.id; editingSnapshot = clone(item); renderActivities() }
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'table-action delete'; remove.append(icon('M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6 M10 11v5 M14 11v5')); remove.title = `Eliminar ${item.topic || 'capacitación'}`; remove.setAttribute('aria-label', remove.title)
+      remove.onclick = () => { if (confirm('¿Eliminar esta capacitación del plan?')) { const itemIndex = current.activities.findIndex(activity => activity.id === item.id); if (itemIndex >= 0) current.activities.splice(itemIndex, 1); saveLocalAndRender(); renderActivities() } }
+      actions.append(edit, remove); row.append(actions); tbody.append(row)
+    })
+    table.append(thead, tbody); wrapper.append(table); root.append(wrapper)
   }
   function renderActivities() {
     const root = $('activities'); root.replaceChildren(); const current = plan(); $('emptyState').hidden = current.activities.length > 0
+    const savedActivities = current.activities.filter(item => !item.draft)
+    renderActivityTable(root, savedActivities, current)
+    $('addActivityTop').disabled = current.activities.some(item => item.draft) || Boolean(editingActivityId)
     current.activities.forEach((item, index) => {
+      if (!item.draft && item.id !== editingActivityId) return
       const article = document.createElement('article'); article.className = 'activity-card'; article.dataset.activityId = item.id
       const head = document.createElement('div'); head.className = 'activity-head'
-      const title = document.createElement('strong'); title.textContent = `Actividad ${index + 1}`
+      const title = document.createElement('strong'); title.textContent = `${editingActivityId === item.id ? 'Editar capacitación' : 'Nueva capacitación'} · ${index + 1}`
       const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Eliminar'
-      remove.onclick = () => { if (confirm('¿Eliminar esta capacitación del plan?')) { current.activities.splice(index, 1); saveLocalAndRender(); renderActivities() } }
+      remove.onclick = () => { if (confirm('¿Eliminar esta capacitación del plan?')) { current.activities.splice(index, 1); if (editingActivityId === item.id) { editingActivityId = null; editingSnapshot = null } saveLocalAndRender(); renderActivities() } }
       head.append(title, remove)
       const grid = document.createElement('div'); grid.className = 'activity-grid'
       const activityType = bindActivityControl(selectControl(ACTIVITY_TYPES, item.activityType), item, 'activityType')
@@ -162,18 +205,18 @@
       )
       grid.append(label('Observaciones', observations, '', 'full'))
       const actions = document.createElement('div'); actions.className = 'card-save'
-      const save = document.createElement('button'); save.type = 'button'; save.className = 'button secondary'; save.textContent = 'Guardar actividad'; save.dataset.saveActivity = item.id; save.onclick = () => saveActivity(item)
+      const save = document.createElement('button'); save.type = 'button'; save.className = 'button secondary'; save.textContent = editingActivityId === item.id ? 'Guardar cambios' : 'Guardar actividad'; save.dataset.saveActivity = item.id; save.onclick = () => saveActivity(item)
       actions.append(save)
-      if (index === current.activities.length - 1) {
-        const add = document.createElement('button'); add.type = 'button'; add.className = 'button ghost'; add.textContent = '＋ Agregar nueva actividad'; add.dataset.addAfter = item.id; add.disabled = Boolean(item.draft); add.title = item.draft ? 'Guardá esta actividad antes de agregar una nueva.' : ''; add.onclick = addActivity
-        actions.append(add)
+      if (editingActivityId === item.id) {
+        const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'button ghost'; cancel.textContent = 'Cancelar'; cancel.onclick = () => { const originalIndex = current.activities.findIndex(activity => activity.id === item.id); if (originalIndex >= 0 && editingSnapshot) current.activities[originalIndex] = editingSnapshot; editingActivityId = null; editingSnapshot = null; persistLocal(); renderActivities(); renderSummary() }
+        actions.append(cancel)
       }
       article.append(head, grid, actions); root.append(article)
     })
   }
-  function addActivity() { plan().activities.push(blankActivity()); saveLocalAndRender(); renderActivities(); document.querySelector('.activity-card:last-child')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+  function addActivity() { if (plan().activities.some(item => item.draft) || editingActivityId) return; plan().activities.push(blankActivity()); saveLocalAndRender(); renderActivities(); document.querySelector('.activity-card:last-child')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
   async function saveActivity(item) {
-    item.draft = false; plan().status = 'BORRADOR'; plan().updatedAt = now(); persistLocal(); renderActivities(); renderSummary()
+    item.draft = false; if (editingActivityId === item.id) { editingActivityId = null; editingSnapshot = null } plan().status = 'BORRADOR'; plan().updatedAt = now(); persistLocal(); renderActivities(); renderSummary()
     $('saveMessage').textContent = 'Actividad guardada como borrador. Ya podés agregar otra actividad o continuar con el plan.'
     toast('Actividad guardada como borrador.')
     if (!validatePlan(false).length) await savePlan('BORRADOR')
@@ -212,7 +255,8 @@
   }
   function validatePlan(finalSubmission = false) {
     const current = plan(); const issues = []
-    const addIssue = (message, target) => issues.push({ message, target })
+    const addIssue = (message, target, activityId = null) => issues.push({ message, target, activityId })
+    if (finalSubmission && !$('confirmReview').checked) addIssue('Confirmá que revisaste la información del plan.', () => $('confirmReview'))
     if (!current.registrantName.trim()) addIssue('Indicá el nombre de quien registra.', () => $('registrantName'))
     if (!current.registrantRole.trim()) addIssue('Indicá el cargo.', () => $('registrantRole'))
     if (!/^\S+@\S+\.\S+$/.test(current.registrantEmail)) addIssue('Ingresá un correo válido.', () => $('registrantEmail'))
@@ -221,10 +265,15 @@
     current.activities.forEach((item, index) => {
       if (item.draft) addIssue(`Guardá la actividad ${index + 1} antes de enviar.`, () => document.querySelector(`[data-save-activity="${item.id}"]`))
       const required = ['activityType', 'topic', 'date', 'startTime', 'endTime', 'municipality', 'location', 'modality', 'trainingProvider', 'participatingInstitutions', 'responsible']
-      required.forEach(key => { if (!String(item[key] || '').trim()) addIssue(`Completá este dato de la actividad ${index + 1}.`, () => activityControl(item.id, key)) })
-      if (item.date && !String(item.date).startsWith('2026-11-')) addIssue('La fecha debe corresponder a noviembre de 2026.', () => activityControl(item.id, 'date'))
-      if (Number(item.projectedParticipants) <= 0) addIssue('Ingresá una proyección mayor que cero.', () => activityControl(item.id, 'projectedParticipants'))
+      required.forEach(key => { if (!String(item[key] || '').trim()) addIssue(`Completá este dato de la actividad ${index + 1}.`, () => activityControl(item.id, key), item.id) })
+      if (item.date && !String(item.date).startsWith('2026-11-')) addIssue('La fecha debe corresponder a noviembre de 2026.', () => activityControl(item.id, 'date'), item.id)
+      if (Number(item.projectedParticipants) <= 0) addIssue('Ingresá una proyección mayor que cero.', () => activityControl(item.id, 'projectedParticipants'), item.id)
     })
+    const firstHiddenActivityIssue = finalSubmission && !current.activities.some(item => item.draft) && issues.find(issue => issue.activityId && !current.activities.find(item => item.id === issue.activityId)?.draft)
+    if (firstHiddenActivityIssue && editingActivityId !== firstHiddenActivityIssue.activityId) {
+      const activity = current.activities.find(item => item.id === firstHiddenActivityIssue.activityId)
+      editingActivityId = activity.id; editingSnapshot = clone(activity); renderActivities()
+    }
     return issues
   }
   function remotePayload(current, status) {
@@ -251,11 +300,28 @@
       $('saveMessage').textContent = message; toast(message)
     } finally { savingPlan = false; submit.disabled = false; submit.textContent = submitText }
   }
+  async function loadPlanForExcel(sourcePlan) {
+    if (!configured) throw new Error('No hay conexión con Supabase para consultar el plan actualizado.')
+    const delegationAccess = Boolean(sourcePlan.remoteId && sourcePlan.editToken)
+    const recordId = sourcePlan.remoteId || sourcePlan.id
+    if (!recordId) throw new Error('El plan debe estar enviado a Supabase antes de descargarlo.')
+    const adminSession = delegationAccess ? null : getAdminSession()
+    if (!delegationAccess && !adminSession) throw new Error('La sesión administrativa expiró. Iniciá sesión nuevamente.')
+    const rows = await api(`/rest/v1/${TABLE}?id=eq.${encodeURIComponent(recordId)}&select=*`, {}, adminSession?.accessToken || '', delegationAccess ? sourcePlan.editToken : '')
+    if (!Array.isArray(rows) || rows.length !== 1) throw new Error('No se encontró el plan en Supabase con el acceso actual.')
+    if (rows[0].status !== 'ENVIADO') throw new Error('El plan todavía no está enviado en Supabase.')
+    // Cada delegación es un único registro; activities contiene el arreglo completo sin paginación de filas.
+    return { id: rows[0].id, delegation: rows[0].delegation, status: rows[0].status, activities: rows[0].activities || [] }
+  }
   async function exportPlan(format, sourcePlan, button) {
     const exporter = window.SATPlanExports?.[format]
     if (!exporter) { toast('No se pudo preparar la descarga. Actualizá la página e intentá nuevamente.'); return }
     const label = button?.textContent
-    try { if (button) { button.disabled = true; button.textContent = 'Generando documento…' }; await exporter(sourcePlan); toast(`Plan mensual en ${format === 'word' ? 'Word' : 'Excel'} generado.`) }
+    try {
+      if (button) { button.disabled = true; button.textContent = 'Generando documento…' }
+      const exportSource = format === 'excel' ? await loadPlanForExcel(sourcePlan) : sourcePlan
+      await exporter(exportSource); toast(`Plan mensual en ${format === 'word' ? 'Word' : 'Excel'} generado.`)
+    }
     catch (error) { toast(`No se pudo generar el documento: ${error.message}`) }
     finally { if (button) setTimeout(() => { button.disabled = false; button.textContent = label }, 350) }
   }
@@ -427,7 +493,7 @@
       if (row.status === 'ENVIADO') {
         const downloads = document.createElement('div'); downloads.className = 'admin-downloads'
         downloads.append(text('p', `Descargas disponibles para el plan enviado de ${row.delegation}.`))
-        downloads.append(adminButton('▣ Descargar plan en Word', () => exportPlan('word', { delegation: row.delegation, activities: row.activities || [] }, null), 'button word'), adminButton('▦ Descargar plan en Excel', () => exportPlan('excel', { delegation: row.delegation, activities: row.activities || [] }, null), 'button excel'))
+        downloads.append(adminButton('▣ Descargar plan en Word', () => exportPlan('word', { delegation: row.delegation, activities: row.activities || [] }, null), 'button word'), adminButton('▦ Descargar plan en Excel', () => exportPlan('excel', row, null), 'button excel'))
         body.append(downloads)
       }
       ;(row.activities || []).forEach((item, index) => {
@@ -469,6 +535,7 @@
   }
   function bindEvents() {
     $('addFirst').onclick = addActivity
+    $('addActivityTop').onclick = addActivity
     $('submitPlan').onclick = () => savePlan('ENVIADO')
     $('downloadWord').onclick = event => exportPlan('word', plan(), event.currentTarget)
     $('downloadExcel').onclick = event => exportPlan('excel', plan(), event.currentTarget)

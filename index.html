@@ -8,45 +8,60 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="hero">
-    <div class="hero-inner">
-      <div class="brand"><img class="logo" src="assets/intur-nicaragua-unica.svg" alt="INTUR · Nicaragua Única"><div><span>Sistema de Acompañamiento Técnico</span><strong>Plan territorial de capacitaciones</strong></div></div>
-      <button class="admin-access" id="adminAccess" type="button">🔐 Acceso Admin</button>
-      <div class="hero-copy"><span class="eyebrow">Plan mensual · Noviembre 2026</span><h1>Registro de capacitaciones por delegación</h1><p>Completá la información, revisala y guardala. Los datos quedan registrados en línea para seguimiento de la DDT.</p></div>
-    </div>
-  </header>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegación del SAT Plan">
+      <div class="sidebar-kicker">INTUR <span>·</span> SAT</div>
+      <nav>
+        <a href="#pageHeading"><span aria-hidden="true">⌂</span> Inicio</a>
+        <a class="active" href="#delegateView"><span aria-hidden="true">▤</span> Registro del plan</a>
+        <a href="#help"><span aria-hidden="true">?</span> Ayuda</a>
+      </nav>
+      <div class="sidebar-art" aria-hidden="true"><svg viewBox="0 0 260 300" preserveAspectRatio="none"><defs><linearGradient id="lake" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#00a8e1" stop-opacity=".08"/><stop offset="1" stop-color="#62c8ef" stop-opacity=".6"/></linearGradient></defs><path d="M0 132 39 83l25 30 39-74 52 95 29-50 76 61v155H0Z" fill="#168bd0" opacity=".42"/><path d="m0 165 45-39 35 22 31-35 53 51 31-31 65 43v124H0Z" fill="#063366" opacity=".62"/><path d="M0 178q45-9 87 3t85 0 88 2v117H0Z" fill="url(#lake)"/><path d="M0 214q48-8 94 2t85 0 81 1M0 246q48-6 94 2t85 0 81 1" fill="none" stroke="#c4efff" stroke-opacity=".42" stroke-width="2"/><g fill="none" stroke="#c4efff" stroke-opacity=".45" stroke-width="2"><path d="M57 86c-25-30-47-16-28 10-35-6-36 21-5 22-24 20-5 39 18 17 1 34 26 32 27 1 20 28 43 10 15-13 34 0 32-27-4-21 17-28-7-42-23-16Z"/><circle cx="65" cy="113" r="8"/></g></svg><em>Nicaragua Única... Original!</em></div>
+      <div class="sidebar-bottom"><div class="brand-stripe" aria-hidden="true"><i></i><i></i><i></i><i></i></div><span>Dirección de Desarrollo Turístico</span></div>
+    </aside>
+
+    <div class="app-main">
+      <header class="hero">
+        <div class="hero-inner">
+          <div class="brand"><img class="logo" src="assets/intur-nicaragua-unica.svg" alt="INTUR · Nicaragua Única"><div><span>Instituto Nicaragüense de Turismo</span><strong>Nicaragua Única... Original</strong></div></div>
+          <div class="header-title"><span>SAT INTUR</span><strong>Registro del Plan Mensual de Capacitaciones</strong></div>
+          <div class="header-actions"><span class="period-label">▣ &nbsp;Noviembre 2026</span><a class="header-delegation" href="#identification"><small>Delegación</small><strong id="headerDelegationName">Chinandega</strong></a><button class="admin-access" id="adminAccess" type="button">◉ &nbsp;Acceso Admin</button></div>
+        </div>
+      </header>
 
   <main class="shell">
     <div class="connection" id="connection" role="status" aria-live="polite"></div>
 
     <section id="delegateView">
-      <section class="panel identity-panel">
+      <div class="page-heading" id="pageHeading"><div><h1>Registro de capacitaciones por delegación</h1><p>Completá la información, revisala y guardala. Los datos quedan registrados en línea para seguimiento de la DDT.</p></div><div class="brand-stripe heading-stripe" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div>
+      <section class="panel identity-panel" id="identification">
         <div class="panel-title"><div><span class="eyebrow dark">Identificación territorial</span><h2>Delegación y persona que registra</h2><p>Estos datos permiten saber quién completó el plan y contactarle si hace falta una aclaración.</p></div><span class="status-pill" id="planStatus">Borrador local</span></div>
         <div class="identity-grid">
-          <label>Región<select id="region"></select></label>
-          <label>Delegación<select id="delegation"></select></label>
-          <label>Nombre de quien registra<input id="registrantName" autocomplete="name" placeholder="Nombre y apellido"></label>
-          <label>Cargo<input id="registrantRole" placeholder="Ej. Especialista territorial"></label>
-          <label>Correo institucional<input id="registrantEmail" type="email" autocomplete="email" placeholder="correo@intur.gob.ni"></label>
-          <label>Teléfono de contacto<input id="registrantPhone" type="tel" autocomplete="tel" placeholder="Ej. 8888-0000"></label>
+          <label class="identity-field field-region"><span>Región <b class="required-mark">*</b></span><select id="region"></select></label>
+          <label class="identity-field field-delegation"><span>Delegación <b class="required-mark">*</b></span><select id="delegation"></select></label>
+          <label class="identity-field field-person"><span>Nombre de quien registra <b class="required-mark">*</b></span><input id="registrantName" autocomplete="name" placeholder="Nombre y apellido"></label>
+          <label class="identity-field field-role"><span>Cargo <b class="required-mark">*</b></span><input id="registrantRole" placeholder="Ej. Especialista territorial"></label>
+          <label class="identity-field field-email"><span>Correo institucional <b class="required-mark">*</b></span><input id="registrantEmail" type="email" autocomplete="email" placeholder="correo@intur.gob.ni"></label>
+          <label class="identity-field field-phone"><span>Teléfono de contacto <b class="required-mark">*</b></span><input id="registrantPhone" type="tel" autocomplete="tel" placeholder="Ej. 8888-0000"></label>
         </div>
       </section>
 
       <section class="metrics" aria-label="Resumen del plan">
-        <article><span>📋</span><div><small>Capacitaciones</small><strong id="activityCount">0</strong></div></article>
-        <article><span>👥</span><div><small>Proyección total</small><strong id="participantCount">0</strong></div></article>
-        <article><span>🏛️</span><div><small>Delegación</small><strong id="delegationMetric">—</strong></div></article>
-        <article><span>🕒</span><div><small>Último guardado</small><strong id="lastSaved">Pendiente</strong></div></article>
+        <article class="metric-activities"><span>▤</span><div><small>Capacitaciones</small><strong id="activityCount">0</strong></div></article>
+        <article class="metric-projection"><span>♟</span><div><small>Proyección total</small><strong id="participantCount">0</strong></div></article>
+        <article class="metric-delegation"><span>⌖</span><div><small>Delegación</small><strong id="delegationMetric">—</strong></div></article>
+        <article class="metric-saved"><span>◷</span><div><small>Último guardado</small><strong id="lastSaved">Pendiente</strong></div></article>
       </section>
 
       <section class="panel plan-panel">
-        <div class="panel-title plan-heading"><div><span class="eyebrow dark">Programación mensual</span><h2 id="activitiesHeading">Capacitaciones</h2><p>Una capacitación de varios días se registra una sola vez, indicando las fechas adicionales.</p></div></div>
-        <div class="guidance"><b>Información necesaria:</b> tema, fecha, horario, municipio, lugar, modalidad, quién imparte, quiénes participan, responsable y proyección. En actividades de varios días, agregá las demás fechas sin duplicar la capacitación.</div>
+        <div class="panel-title plan-heading"><div><span class="eyebrow dark">Programación mensual</span><h2 id="activitiesHeading">Capacitaciones</h2><p>Una capacitación de varios días se registra una sola vez, indicando las fechas adicionales.</p></div><button class="button add-activity" id="addActivityTop" type="button">＋ Agregar capacitación</button></div>
+        <div class="guidance" id="help"><b>Información necesaria:</b> tema, fecha, horario, municipio, lugar, modalidad, quién imparte, quiénes participan, responsable y proyección. En actividades de varios días, agregá las demás fechas sin duplicar la capacitación.</div>
         <div id="activities"></div>
         <div class="empty" id="emptyState"><span>🗓️</span><h3>El plan está listo para comenzar</h3><p>Agregá la primera capacitación de tu delegación para noviembre de 2026.</p><button class="button secondary" type="button" id="addFirst">＋ Agregar primera capacitación</button></div>
       </section>
 
       <section class="submit-panel">
+        <label class="confirmation"><input id="confirmReview" type="checkbox"><span>Confirmo que revisé fechas, responsables, instituciones y proyección de participantes.</span></label>
         <div><button class="button primary" id="submitPlan" type="button">Enviar plan a la DDT</button></div>
         <p id="saveMessage" aria-live="polite">Revisá los datos y presioná “Enviar plan a la DDT” cuando esté listo.</p>
       </section>
@@ -71,6 +86,10 @@
     </section>
   </main>
 
+      <footer>SAT · INTUR · Dirección de Desarrollo Turístico · Plan de noviembre 2026</footer>
+    </div>
+  </div>
+
   <dialog id="adminDialog" class="admin-dialog">
     <form method="dialog" id="adminLoginForm">
       <button class="dialog-close" value="cancel" aria-label="Cerrar">×</button>
@@ -91,7 +110,6 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <footer>SAT · INTUR · Dirección de Desarrollo Turístico · Plan de noviembre 2026</footer>
   <script src="config.js"></script>
   <script src="vendor/xlsx-js-style.min.js"></script>
   <script src="vendor/pizzip.min.js"></script>

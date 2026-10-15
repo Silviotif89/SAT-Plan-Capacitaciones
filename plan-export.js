@@ -84,58 +84,127 @@
     zip.file('word/document.xml', `${original.slice(0, bodyStart + '<w:body>'.length)}${replacementBody}</w:body>${original.slice(bodyEnd + '</w:body>'.length)}`)
     return zip.generate({ type: 'uint8array', compression: 'DEFLATE' })
   }
-  const col = index => { let out = ''; for (let value = index; value > 0; value = Math.floor((value - 1) / 26)) out = String.fromCharCode(65 + ((value - 1) % 26)) + out; return out }
-  const cell = (ref, value, style = 0, number = false) => number ? `<c r="${ref}" s="${style}"><v>${Number(value) || 0}</v></c>` : `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xml(value ?? '')}</t></is></c>`
-  const xlsx = plan => {
-    const headers = ['Nº', 'Departamento o región', 'Municipio', 'Nombre de la capacitación', 'Fecha', 'Hora', 'Duración', 'Lugar', 'Institución que imparte', 'Grupo meta o participantes', 'Proyección de participantes', 'Hombres', 'Mujeres', 'Observaciones']
-    const data = activities(plan); const width = [7,25,19,42,18,16,16,30,27,31,18,12,12,36]
-    const rows = [`<row r="1" ht="25" customHeight="1">${cell('A1','INSTITUTO NICARAGÜENSE DE TURISMO',1)}</row>`,`<row r="2" ht="22" customHeight="1">${cell('A2',`${delegationTitle(plan.delegation)} ${String(plan.delegation || '').toUpperCase()}`,1)}</row>`,`<row r="3" ht="24" customHeight="1">${cell('A3',`PLAN MENSUAL DE CAPACITACIONES ${MONTH}`,1)}</row>`,'<row r="4"/>',`<row r="5" ht="38" customHeight="1">${headers.map((h,i)=>cell(`${col(i+1)}5`,h,2)).join('')}</row>`,...data.map((item,rowIndex)=>{const r=rowIndex+6;const values=[rowIndex+1,plan.delegation,item.municipality,item.topic,item.date,timeRange(item),item.additionalDates||'',item.location,item.trainingProvider,item.participatingInstitutions,item.projectedParticipants,item.hombres??'',item.mujeres??'',item.observations||''];return `<row r="${r}" ht="44" customHeight="1">${values.map((value,i)=>cell(`${col(i+1)}${r}`,value,i===0?4:3,i===0||i===10||(i>10&&value!==''))).join('')}</row>`})]
-    const endRow=Math.max(6,data.length+5)
-    const sheet=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"><pane ySplit="5" topLeftCell="A6" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>${width.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</cols><sheetData>${rows.join('')}</sheetData><mergeCells count="3"><mergeCell ref="A1:N1"/><mergeCell ref="A2:N2"/><mergeCell ref="A3:N3"/></mergeCells><autoFilter ref="A5:N${endRow}"/><pageMargins left="0.35" right="0.35" top="0.55" bottom="0.55" header="0.2" footer="0.2"/></worksheet>`
-    return zip([
-      {name:'[Content_Types].xml',content:'<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'},
-      {name:'_rels/.rels',content:'<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
-      {name:'xl/workbook.xml',content:'<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Plan mensual" sheetId="1" r:id="rId1"/></sheets></workbook>'},
-      {name:'xl/_rels/workbook.xml.rels',content:'<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'},
-      {name:'xl/styles.xml',content:'<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font><sz val="10"/><name val="Aptos"/></font><font><b/><sz val="12"/><color rgb="FFFFFFFF"/><name val="Aptos"/></font><font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Aptos"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF152D6B"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF176FBA"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/></border><border><left style="thin"><color rgb="FFD9E2EF"/></left><right style="thin"><color rgb="FFD9E2EF"/></right><top style="thin"><color rgb="FFD9E2EF"/></top><bottom style="thin"><color rgb="FFD9E2EF"/></bottom></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyAlignment="1"><alignment horizontal="center" vertical="top" wrapText="1"/></xf></cellXfs></styleSheet>'},
-      {name:'xl/worksheets/sheet1.xml',content:sheet}
-    ])
-  }
-  const excelWorkbook = plan => {
-    const workbookLib = window.XLSX
-    if (!workbookLib) throw new Error('No se pudo cargar el generador de Excel.')
-    const headers = ['Nº', 'Municipio', 'Nombre de la capacitación', 'Fecha', 'Hora', 'Lugar', 'Institución que imparte', 'Grupo meta o participantes', 'Proyección de participantes', 'Hombres', 'Mujeres', 'Responsable', 'Observación']
-    const rows = activities(plan).map((item, index) => [index + 1, item.municipality || '', item.topic || '', item.date || '', timeRange(item), item.location || '', item.trainingProvider || '', item.participatingInstitutions || '', item.projectedParticipants ?? '', item.hombres ?? '', item.mujeres ?? '', item.responsible || '', [item.additionalDates, item.observations].filter(value => String(value || '').trim()).join('. ')])
-    const sheet = workbookLib.utils.aoa_to_sheet([
-      ['INSTITUTO NICARAGÜENSE DE TURISMO'],
-      [`${delegationTitle(plan.delegation)} ${String(plan.delegation || '').toUpperCase()}`],
-      [`PLAN MENSUAL DE CAPACITACIONES ${MONTH}`],
-      [],
-      headers,
-      ...rows
-    ])
-    const endRow = Math.max(6, rows.length + 5)
-    const titleStyle = { font: { bold: true, color: { rgb: 'FFFFFFFF' }, sz: 12 }, fill: { fgColor: { rgb: 'FF152D6B' } }, alignment: { horizontal: 'center', vertical: 'center' } }
-    const headerStyle = { font: { bold: true, color: { rgb: 'FFFFFFFF' } }, fill: { fgColor: { rgb: 'FF176FBA' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: { top: { style: 'thin', color: { rgb: 'FFD9E2EF' } }, bottom: { style: 'thin', color: { rgb: 'FFD9E2EF' } }, left: { style: 'thin', color: { rgb: 'FFD9E2EF' } }, right: { style: 'thin', color: { rgb: 'FFD9E2EF' } } } }
-    const bodyStyle = { alignment: { vertical: 'top', wrapText: true }, border: { top: { style: 'thin', color: { rgb: 'FFD9E2EF' } }, bottom: { style: 'thin', color: { rgb: 'FFD9E2EF' } }, left: { style: 'thin', color: { rgb: 'FFD9E2EF' } }, right: { style: 'thin', color: { rgb: 'FFD9E2EF' } } } }
-    for (let column = 0; column < headers.length; column += 1) {
-      const cellRef = workbookLib.utils.encode_cell({ r: 4, c: column })
-      sheet[cellRef].s = headerStyle
-      for (let row = 5; row < endRow; row += 1) {
-        const ref = workbookLib.utils.encode_cell({ r: row, c: column })
-        if (sheet[ref]) sheet[ref].s = bodyStyle
-      }
+  const columnLetter = index => String.fromCharCode(65 + index)
+  const durationLabel = item => {
+    const toMinutes = value => {
+      const match = /^(\d{1,2}):(\d{2})$/.exec(String(value || ''))
+      return match ? Number(match[1]) * 60 + Number(match[2]) : null
     }
-    for (const row of [0, 1, 2]) sheet[`A${row + 1}`].s = titleStyle
-    sheet['!merges'] = ['A1:M1', 'A2:M2', 'A3:M3'].map(workbookLib.utils.decode_range)
-    sheet['!cols'] = [7, 19, 42, 18, 16, 30, 27, 31, 18, 12, 12, 24, 42].map(wch => ({ wch }))
-    sheet['!rows'] = [{ hpt: 25 }, { hpt: 22 }, { hpt: 24 }, { hpt: 12 }, { hpt: 38 }, ...rows.map(() => ({ hpt: 44 }))]
-    sheet['!autofilter'] = { ref: `A5:M${endRow}` }
-    sheet['!pageMargins'] = { left: 0.35, right: 0.35, top: 0.55, bottom: 0.55, header: 0.2, footer: 0.2 }
-    const workbook = workbookLib.utils.book_new()
-    workbookLib.utils.book_append_sheet(workbook, sheet, 'Plan mensual')
-    return workbookLib.write(workbook, { bookType: 'xlsx', type: 'array', compression: true })
+    const start = toMinutes(item.startTime), end = toMinutes(item.endTime)
+    if (start === null || end === null || end < start) return ''
+    const minutes = end - start, hours = Math.floor(minutes / 60), remainder = minutes % 60
+    return [hours ? `${hours} h` : '', remainder ? `${remainder} min` : ''].filter(Boolean).join(' ')
+  }
+  const dateCell = item => [item.date ? dateLabel(item.date) : '', String(item.additionalDates || '').trim()].filter(Boolean).join('; ')
+  const observationCell = item => [
+    item.activityType ? `Tipo de actividad: ${item.activityType}` : '',
+    item.location ? `Lugar: ${item.location}` : '',
+    item.trainingProvider ? `Institución que imparte: ${item.trainingProvider}` : '',
+    item.participatingInstitutions ? `Instituciones o actores participantes: ${item.participatingInstitutions}` : '',
+    item.responsible ? `Responsable: ${item.responsible}` : '',
+    item.observations ? `Observaciones: ${item.observations}` : '',
+  ].filter(Boolean).join('; ')
+  const verticalMergeRanges = (rows, columnIndex) => {
+    const ranges = []; let start = 0
+    while (start < rows.length) {
+      const value = String(rows[start][columnIndex] || '').trim(); let end = start + 1
+      while (value && end < rows.length && String(rows[end][columnIndex] || '').trim() === value) end += 1
+      if (value && end - start > 1) {
+        ranges.push(`${columnLetter(columnIndex)}${start + 4}:${columnLetter(columnIndex)}${end + 3}`)
+        for (let index = start + 1; index < end; index += 1) rows[index][columnIndex] = ''
+      }
+      start = end
+    }
+    return ranges
+  }
+  const templateExcelWorkbook = async plan => {
+    if (!window.PizZip) throw new Error('No se pudo cargar el lector de la plantilla Excel.')
+    const response = await fetch('assets/plantilla-plan-mensual.xlsx')
+    if (!response.ok) throw new Error('No se encontró la plantilla oficial del plan mensual.')
+    const zipFile = new window.PizZip(await response.arrayBuffer())
+    const sheetPath = 'xl/worksheets/sheet1.xml', workbookPath = 'xl/workbook.xml', stylesPath = 'xl/styles.xml'
+    let sheetXml = zipFile.file(sheetPath)?.asText(), workbookXml = zipFile.file(workbookPath)?.asText(), stylesXml = zipFile.file(stylesPath)?.asText()
+    if (!sheetXml || !workbookXml || !stylesXml) throw new Error('La plantilla Excel no contiene la hoja y estilos esperados.')
+    const sheetDataMatch = /<sheetData\b[^>]*>([\s\S]*?)<\/sheetData>/.exec(sheetXml)
+    if (!sheetDataMatch) throw new Error('La plantilla Excel no contiene la tabla principal.')
+    const rows = [...(plan.activities || [])]
+      .filter(item => !item.draft && String(item.date || '').startsWith('2026-11-'))
+      .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')))
+      .map((item, index) => [
+        index + 1, String(plan.delegation || '').toUpperCase(), item.municipality || '', item.topic || '', durationLabel(item), '', '', '', '', '', dateCell(item),
+        item.projectedParticipants === '' || item.projectedParticipants == null || !Number.isFinite(Number(item.projectedParticipants)) ? '' : Number(item.projectedParticipants), item.ddtFacilitator || '', observationCell(item),
+      ])
+    if (!rows.length) throw new Error('No hay capacitaciones guardadas en Supabase para noviembre de 2026.')
+    const sourceRows = sheetDataMatch[1]
+    const templateRow = /<row\b[^>]*\br="4"[^>]*>[\s\S]*?<\/row>/.exec(sourceRows)?.[0]
+    if (!templateRow) throw new Error('No se pudo encontrar la fila de formato en la plantilla.')
+    const rowAttributes = /<row\b([^>]*)>/.exec(templateRow)?.[1] || ''
+    const borderCollection = /<borders\b[^>]*>([\s\S]*?)<\/borders>/.exec(stylesXml)
+    const cellXfsCollection = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml)
+    if (!borderCollection || !cellXfsCollection) throw new Error('No se pudieron leer los bordes de la plantilla Excel.')
+    const borders = borderCollection[1].match(/<border\b[^>]*>[\s\S]*?<\/border>/g) || []
+    const cellStyles = cellXfsCollection[1].match(/<xf\b[^>]*\/>|<xf\b[^>]*>[\s\S]*?<\/xf>/g) || []
+    const gridBorderId = borders.findIndex(border => ['left', 'right', 'top', 'bottom'].every(side => new RegExp(`<${side}\\b[^>]*\\bstyle=`).test(border)))
+    if (gridBorderId < 0 || !cellStyles.length) throw new Error('La plantilla no define un borde completo para la tabla.')
+    const addedStyles = []
+    const ensureGridStyle = styleId => {
+      const style = cellStyles[Number(styleId)]
+      if (!style) throw new Error('No se encontró el estilo de una columna de la tabla.')
+      const borderId = Number(/\bborderId="(\d+)"/.exec(style)?.[1] || 0)
+      const currentBorder = borders[borderId] || ''
+      if (['left', 'right', 'top', 'bottom'].every(side => new RegExp(`<${side}\\b[^>]*\\bstyle=`).test(currentBorder))) return String(styleId)
+      const updatedStyle = style.replace(/<xf\b([^>]*)>/, (_, attributes) => {
+        let nextAttributes = attributes.replace(/\bborderId="\d+"/, `borderId="${gridBorderId}"`).replace(/\s+\/$/, '')
+        if (!/\bborderId=/.test(nextAttributes)) nextAttributes += ` borderId="${gridBorderId}"`
+        if (!/\bapplyBorder=/.test(nextAttributes)) nextAttributes += ' applyBorder="1"'
+        return `<xf${nextAttributes}>`
+      })
+      const nextId = cellStyles.length + addedStyles.length
+      addedStyles.push(updatedStyle)
+      return String(nextId)
+    }
+    const styles = {}
+    for (let index = 0; index < 14; index += 1) {
+      const col = columnLetter(index)
+      const cellMatch = new RegExp(`<c\\b([^>]*\\br="${col}4"[^>]*)\\s*/?>`).exec(templateRow)
+      if (!cellMatch) throw new Error(`La plantilla no contiene el estilo de la columna ${col}.`)
+      styles[col] = ensureGridStyle(/\bs="(\d+)"/.exec(cellMatch[1])?.[1] || '0')
+    }
+    const headerRows = [...sourceRows.matchAll(/<row\b[^>]*\br="([123])"[^>]*>[\s\S]*?<\/row>/g)].map(match => match[0])
+    if (headerRows.length !== 3) throw new Error('La plantilla no contiene sus tres filas de encabezado.')
+    const dataRows = rows.map((values, rowIndex) => {
+      const rowNumber = rowIndex + 4
+      const cells = values.map((value, index) => {
+        const col = columnLetter(index), style = styles[col]
+        if (typeof value === 'number' && Number.isFinite(value)) return `<c r="${col}${rowNumber}" s="${style}"><v>${value}</v></c>`
+        return value === '' || value == null
+          ? `<c r="${col}${rowNumber}" s="${style}"/>`
+          : `<c r="${col}${rowNumber}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xml(value)}</t></is></c>`
+      }).join('')
+      const attributes = rowAttributes.replace(/\br="4"/, `r="${rowNumber}"`).replace(/\s+hidden="[^"]*"/, '')
+      return `<row${attributes}>${cells}</row>`
+    })
+    const merges = ['A1:M1', 'A2:M2', ...[1, 2, 9].flatMap(column => verticalMergeRanges(rows, column))]
+    const endRow = rows.length + 3
+    sheetXml = sheetXml.replace(sheetDataMatch[0], `<sheetData>${headerRows.join('')}${dataRows.join('')}</sheetData>`)
+    sheetXml = sheetXml.replace(/<mergeCells\b[^>]*>[\s\S]*?<\/mergeCells>/, `<mergeCells count="${merges.length}">${merges.map(ref => `<mergeCell ref="${ref}"/>`).join('')}</mergeCells>`)
+    sheetXml = sheetXml.replace(/(<dimension\b[^>]*\bref=")[^"]+/, `$1A1:N${endRow}`)
+    sheetXml = sheetXml.replace(/(<autoFilter\b[^>]*\bref=")[^"]+/, `$1A3:N${endRow}`)
+    workbookXml = workbookXml.replace(/(<sheet\b[^>]*\bname=")[^"]+/, '$1PLAN NOVIEMBRE 2026')
+    workbookXml = workbookXml.replace(/(<definedName\b[^>]*name="_xlnm\._FilterDatabase"[^>]*>)[\s\S]*?(<\/definedName>)/, (_, open, close) => `${open}'PLAN NOVIEMBRE 2026'!$A$3:$N$${endRow}${close}`)
+    if (addedStyles.length) {
+      stylesXml = stylesXml.replace(/(<cellXfs\b[^>]*\bcount=")(\d+)(")/, (_, open, count, close) => `${open}${Number(count) + addedStyles.length}${close}`)
+      stylesXml = stylesXml.replace('</cellXfs>', `${addedStyles.join('')}</cellXfs>`)
+      zipFile.file(stylesPath, stylesXml)
+    }
+    zipFile.file(sheetPath, sheetXml)
+    zipFile.file(workbookPath, workbookXml)
+    const appPath = 'docProps/app.xml', appXml = zipFile.file(appPath)?.asText()
+    if (appXml) zipFile.file(appPath, appXml.replace(/PLAN (?:SEPTIEMBRE|NOVIEMBRE) 2026/g, 'PLAN NOVIEMBRE 2026'))
+    const corePath = 'docProps/core.xml', coreXml = zipFile.file(corePath)?.asText()
+    if (coreXml) zipFile.file(corePath, coreXml.replace(/<dc:creator>[\s\S]*?<\/dc:creator>/, '<dc:creator>INTUR</dc:creator>').replace(/<cp:lastModifiedBy>[\s\S]*?<\/cp:lastModifiedBy>/, '<cp:lastModifiedBy>INTUR</cp:lastModifiedBy>'))
+    return zipFile.generate({ type: 'uint8array', compression: 'DEFLATE' })
   }
   const completePlan = rows => ({ complete: true, delegation: 'COMPLETO', activities: rows.flatMap(row => (row.activities || []).map(item => ({ ...item, delegation: row.delegation }))).sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')) || String(a.delegation || '').localeCompare(String(b.delegation || ''))) })
-  window.SATPlanExports={async word(plan){download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan.delegation))},async wordComplete(rows){const plan=completePlan(rows);download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx','COMPLETO'))},excel(plan){download(excelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan.delegation))}}
+  window.SATPlanExports={async word(plan){download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan.delegation))},async wordComplete(rows){const plan=completePlan(rows);download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx','COMPLETO'))},async excel(plan){download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan.delegation))}}
 })()
