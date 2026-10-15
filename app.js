@@ -27,6 +27,7 @@
 
   let store = loadStore()
   let adminRows = []
+  let ddtActivities = []
   let savingPlan = false
   let editingActivityId = null
   let editingSnapshot = null
@@ -321,6 +322,117 @@
     if (!Array.isArray(rows) || !rows.length) throw new Error('No hay planes enviados disponibles para generar el Excel completo.')
     return rows
   }
+  async function loadAllSubmittedPlans(token) {
+    const pageSize = 500
+    const plans = []
+    let offset = 0
+    while (true) {
+      const end = offset + pageSize - 1
+      const rows = await api(`/rest/v1/${TABLE}?status=eq.ENVIADO&select=*&order=delegation.asc`, { headers: { 'Range-Unit': 'items', Range: `${offset}-${end}` } }, token)
+      if (!Array.isArray(rows)) throw new Error('Supabase devolvió una respuesta inesperada al consultar los planes enviados.')
+      if (rows.length > pageSize) throw new Error('Supabase no respetó el rango de consulta; se detuvo la carga para evitar registros repetidos.')
+      plans.push(...rows)
+      if (rows.length < pageSize) break
+      offset += pageSize
+    }
+    return plans
+  }
+  async function loadDdtActivities() {
+    if (!configured) throw new Error('No hay conexión con Supabase para consultar el Plan DDT.')
+    const session = getAdminSession()
+    if (!session) throw new Error('La sesión administrativa expiró. Iniciá sesión nuevamente.')
+    const plans = await loadAllSubmittedPlans(session.accessToken)
+    const seenIds = new Set()
+    const activities = []
+    plans.forEach(row => {
+      if (row.status !== 'ENVIADO' || !Array.isArray(row.activities)) return
+      row.activities.forEach(activity => {
+        if (!activity || activity.draft || !/^2026-11-(0[1-9]|[12]\d|30)$/.test(String(activity.date || ''))) return
+        if (String(activity.trainingProvider || '').trim() !== 'INTUR CENTRAL') return
+        const activityId = activity.id == null ? '' : String(activity.id).trim()
+        if (activityId && seenIds.has(activityId)) return
+        if (activityId) seenIds.add(activityId)
+        activities.push({ ...activity, delegation: row.delegation, planStatus: row.status })
+      })
+    })
+    return activities.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.startTime || '').localeCompare(String(b.startTime || '')) || String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' }))
+  }
+  function ddtDateLabel(value) {
+    const [year, month, day] = String(value || '').split('-').map(Number)
+    if (!year || !month || !day) return 'Fecha pendiente de confirmar'
+    const date = new Date(year, month - 1, day)
+    const weekday = new Intl.DateTimeFormat('es-NI', { weekday: 'long' }).format(date)
+    const monthLabel = new Intl.DateTimeFormat('es-NI', { month: 'long' }).format(date)
+    return `${weekday[0].toLocaleUpperCase('es-NI')}${weekday.slice(1)} ${day} de ${monthLabel} de ${year}`
+  }
+  function ddtTimeLabel(value) {
+    const raw = String(value || '').trim(), match = /^(\d{1,2}):(\d{2})$/.exec(raw)
+    if (!match) return raw
+    const hour = Number(match[1]), minute = Number(match[2])
+    if (hour > 23 || minute > 59) return raw
+    return `${String(hour % 12 || 12).padStart(2, '0')}:${match[2]} ${hour < 12 ? 'a. m.' : 'p. m.'}`
+  }
+  function renderDdtActivities(activities) {
+    ddtActivities = activities
+    const root = $('ddtActivityGroups'); root.replaceChildren()
+    const isEmpty = activities.length === 0
+    $('ddtSummary').hidden = isEmpty
+    $('ddtEmpty').hidden = !isEmpty
+    $('ddtActivityTotal').textContent = activities.length.toLocaleString('es-NI')
+    $('ddtParticipantTotal').textContent = activities.reduce((sum, activity) => sum + (Number(activity.projectedParticipants) > 0 ? Number(activity.projectedParticipants) : 0), 0).toLocaleString('es-NI')
+    $('downloadDdtWord').disabled = isEmpty
+    const groups = new Map()
+    activities.forEach(activity => { const list = groups.get(activity.date) || []; list.push(activity); groups.set(activity.date, list) })
+    groups.forEach((items, date) => {
+      const section = document.createElement('section'); section.className = 'ddt-date-group'
+      const heading = document.createElement('div'); heading.className = 'ddt-date-heading'
+      heading.append(text('h3', ddtDateLabel(date)), text('span', `${items.length} capacitación${items.length === 1 ? '' : 'es'}`))
+      section.append(heading)
+      items.forEach(activity => {
+        const card = document.createElement('article'); card.className = 'ddt-activity-card'
+        const cardHeading = document.createElement('div'); cardHeading.className = 'ddt-card-heading'
+        cardHeading.append(text('h4', activity.topic || 'Pendiente de confirmar'), text('span', 'Enviado', 'admin-state sent'))
+        const time = [activity.startTime, activity.endTime].filter(value => String(value || '').trim()).map(ddtTimeLabel).join(' – ') || 'Pendiente de confirmar'
+        const projection = Number(activity.projectedParticipants) > 0 ? `${Number(activity.projectedParticipants).toLocaleString('es-NI')} personas` : 'Pendiente de confirmar'
+        const fields = [
+          ['Departamento', activity.delegation], ['Municipio', activity.municipality], ['Fecha y hora', `${ddtDateLabel(activity.date)} · ${time}`],
+          ['Lugar', activity.location], ['Responsable', activity.responsible], ['Participan', activity.participatingInstitutions], ['Proyección', projection],
+        ].filter(([name, value]) => name !== 'Municipio' || String(value || '').trim())
+        const grid = document.createElement('div'); grid.className = 'ddt-activity-fields'
+        fields.forEach(([name, value]) => grid.append(adminField(name, value || 'Pendiente de confirmar')))
+        card.append(cardHeading, grid); section.append(card)
+      })
+      root.append(section)
+    })
+  }
+  async function openPlanDdt() {
+    if (!getAdminSession()) { toast('La sesión administrativa expiró. Iniciá sesión nuevamente.'); return }
+    $('adminDashboard').hidden = true; $('planDdtView').hidden = false
+    ddtActivities = []
+    $('ddtLoading').hidden = false; $('ddtError').hidden = true; $('ddtSummary').hidden = true; $('ddtEmpty').hidden = true
+    $('ddtActivityGroups').replaceChildren(); $('downloadDdtWord').disabled = true
+    try {
+      renderDdtActivities(await loadDdtActivities())
+    } catch (error) {
+      $('ddtError').textContent = error.message
+      $('ddtError').hidden = false
+    } finally { $('ddtLoading').hidden = true }
+  }
+  async function downloadDdtPlan(button) {
+    const exporter = window.SATPlanExports?.ddtWord
+    const originalLabel = button.textContent
+    try {
+      button.disabled = true; button.textContent = 'Actualizando datos…'
+      const latest = await loadDdtActivities()
+      renderDdtActivities(latest)
+      if (!latest.length) { toast('No hay capacitaciones asignadas a INTUR CENTRAL para noviembre 2026.'); return }
+      if (!exporter) throw new Error('No se pudo cargar el generador de Word. Actualizá la página e intentá nuevamente.')
+      button.disabled = true; button.textContent = 'Generando Word…'
+      await exporter(latest)
+      toast('Plan DDT de noviembre 2026 descargado.')
+    } catch (error) { toast(`No se pudo generar el Plan DDT: ${error.message}`) }
+    finally { button.textContent = originalLabel; button.disabled = ddtActivities.length === 0 }
+  }
   async function exportPlan(format, sourcePlan, button) {
     const exporter = window.SATPlanExports?.[format]
     if (!exporter) { toast('No se pudo preparar la descarga. Actualizá la página e intentá nuevamente.'); return }
@@ -552,6 +664,9 @@
     $('adminAccess').onclick = async () => { const session = getAdminSession(); if (session) await showAdmin(session.accessToken); else $('adminDialog').showModal() }
     $('adminLoginForm').onsubmit = adminLogin
     $('assignDdtStaff').onclick = openAssignmentDialog
+    $('adminPlanDdt').onclick = openPlanDdt
+    $('ddtBack').onclick = () => { $('planDdtView').hidden = true; $('adminDashboard').hidden = false }
+    $('downloadDdtWord').onclick = event => downloadDdtPlan(event.currentTarget)
     $('adminLogout').onclick = () => { sessionStorage.removeItem(ADMIN_SESSION_KEY); $('adminView').hidden = true; $('delegateView').hidden = false; toast('Sesión administrativa cerrada.') }
     $('adminDownloadComplete').onclick = event => exportPlan('wordComplete', adminRows, event.currentTarget)
     $('adminDownloadExcelComplete').onclick = event => exportPlan('excelComplete', adminRows, event.currentTarget)

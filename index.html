@@ -72,7 +72,8 @@
     </section>
 
     <section id="adminView" class="admin-view" hidden>
-      <div class="admin-bar"><div><span class="eyebrow dark">Consola administrativa</span><h2>Seguimiento del Plan de Noviembre</h2><p>Vista central de delegaciones, responsables y capacitaciones registradas.</p></div><div class="admin-main-actions"><button class="button word" id="adminDownloadComplete" type="button" disabled>▣ Descargar plan completo noviembre</button><button class="button excel" id="adminDownloadExcelComplete" type="button" disabled>▦ Descargar Excel completo noviembre</button><button class="button excel" id="adminDownloadCentral" type="button" disabled>Exportar para SAT Central</button><button class="button secondary" id="assignDdtStaff" type="button">👥 Asignar personal DDT</button><button class="button ghost" id="adminLogout" type="button">Cerrar sesión</button></div></div>
+      <div id="adminDashboard">
+      <div class="admin-bar"><div><span class="eyebrow dark">Consola administrativa</span><h2>Seguimiento del Plan de Noviembre</h2><p>Vista central de delegaciones, responsables y capacitaciones registradas.</p></div><div class="admin-action-stack"><div class="admin-main-actions"><button class="button word" id="adminDownloadComplete" type="button" disabled>▣ Descargar plan completo noviembre</button><button class="button excel" id="adminDownloadExcelComplete" type="button" disabled>▦ Descargar Excel completo noviembre</button><button class="button excel" id="adminDownloadCentral" type="button" disabled>Exportar para SAT Central</button><button class="button secondary" id="assignDdtStaff" type="button">👥 Asignar personal DDT</button></div><div class="admin-session-actions"><button class="button plan-ddt" id="adminPlanDdt" type="button">▤ Plan DDT</button><button class="button ghost" id="adminLogout" type="button">Cerrar sesión</button></div></div></div>
       <section class="metrics admin-metrics">
         <article><span>🗺️</span><div><small>Delegaciones con registro</small><strong id="adminDelegations">0 / 17</strong></div></article>
         <article><span>📚</span><div><small>Capacitaciones</small><strong id="adminActivities">0</strong></div></article>
@@ -82,6 +83,19 @@
       <section class="panel">
         <div class="admin-filters"><label>Delegación<select id="adminDelegationFilter"><option value="">Todas</option></select></label><label>Estado<select id="adminStatusFilter"><option value="">Todos</option><option value="BORRADOR">Borrador</option><option value="ENVIADO">Enviado</option></select></label><label>Buscar<input id="adminSearch" type="search" placeholder="Tema, responsable o persona"></label><button class="button secondary" id="adminRefresh" type="button">Actualizar</button></div>
         <div class="admin-list" id="adminList"></div>
+      </section>
+      </div>
+      <section id="planDdtView" class="plan-ddt-view" hidden aria-labelledby="planDdtTitle">
+        <div class="ddt-view-heading"><div><span class="eyebrow dark">Dirección de Desarrollo Turístico</span><h2 id="planDdtTitle">Plan DDT — Noviembre 2026</h2><p>Dirección de Desarrollo Turístico — Departamento de Acompañamiento Técnico</p></div><button class="button ghost" id="ddtBack" type="button">← Volver al panel</button></div>
+        <div id="ddtLoading" class="ddt-message" role="status" hidden>Consultando las capacitaciones vigentes en Supabase…</div>
+        <div id="ddtError" class="ddt-message error" role="alert" hidden></div>
+        <div id="ddtSummary" class="ddt-summary" hidden>
+          <article><span>Capacitaciones asignadas</span><strong id="ddtActivityTotal">0</strong></article>
+          <article><span>Participantes proyectados</span><strong id="ddtParticipantTotal">0</strong></article>
+        </div>
+        <section id="ddtEmpty" class="ddt-empty" hidden>No hay capacitaciones asignadas a INTUR CENTRAL para noviembre 2026.</section>
+        <div id="ddtActivityGroups" class="ddt-activity-groups"></div>
+        <div class="ddt-download-bar"><p>La descarga vuelve a consultar Supabase para incluir los datos vigentes.</p><button class="button plan-ddt" id="downloadDdtWord" type="button" disabled>▣ Descargar Plan DDT en Word</button></div>
       </section>
     </section>
   </main>

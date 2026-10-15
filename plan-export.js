@@ -12,6 +12,14 @@
     if (!year || !month || !day) return String(value)
     return new Intl.DateTimeFormat('es-NI', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(year, month - 1, day))
   }
+  const ddtDateLabel = value => {
+    const [year, month, day] = String(value || '').split('-').map(Number)
+    if (!year || !month || !day) return 'Fecha pendiente de confirmar'
+    const date = new Date(year, month - 1, day)
+    const weekday = new Intl.DateTimeFormat('es-NI', { weekday: 'long' }).format(date)
+    const monthName = new Intl.DateTimeFormat('es-NI', { month: 'long' }).format(date)
+    return `${weekday[0].toLocaleUpperCase('es-NI')}${weekday.slice(1)} ${day} de ${monthName} de ${year}`
+  }
   const timeRange = item => [item.startTime, item.endTime].filter(Boolean).join(' - ')
   const delegationTitle = delegation => ['RACCN', 'RACCS'].includes(String(delegation).toUpperCase()) ? 'DELEGACIÓN REGIONAL DE' : 'DELEGACIÓN DEPARTAMENTAL DE'
   const activities = plan => [...(plan.activities || [])].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')))
@@ -83,6 +91,126 @@
     const replacementBody = `${templateParagraph('INSTITUTO NICARAGÜENSE DE TURISMO', { center: true, bold: true })}${templateParagraph(unitHeading, { center: true, bold: true })}${templateParagraph(`PLAN MENSUAL DE CAPACITACIONES ${MONTH}`, { center: true, bold: true, underline: true })}${content}${section}`
     zip.file('word/document.xml', `${original.slice(0, bodyStart + '<w:body>'.length)}${replacementBody}</w:body>${original.slice(bodyEnd + '</w:body>'.length)}`)
     return zip.generate({ type: 'uint8array', compression: 'DEFLATE' })
+  }
+  const decodeXmlText = value => String(value || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&')
+  const paragraphText = paragraph => [...paragraph.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g)].map(match => decodeXmlText(match[1])).join('')
+  const replaceParagraphText = (paragraph, value) => {
+    let index = 0
+    return paragraph.replace(/(<w:t\b[^>]*>)([\s\S]*?)(<\/w:t>)/g, (_, open, _current, close) => `${open}${index++ === 0 ? xml(value) : ''}${close}`)
+  }
+  const replaceFieldValue = (paragraph, value, requestedLabel, labelOverride = '') => {
+    const nodes = [...paragraph.matchAll(/(<w:t\b[^>]*>)([\s\S]*?)(<\/w:t>)/g)]
+    if (nodes.length < 2) throw new Error(`La plantilla no tiene un campo editable para ${requestedLabel}.`)
+    const firstText = decodeXmlText(nodes[0][2])
+    const colon = firstText.indexOf(':')
+    if (colon < 0) throw new Error(`No se pudo reconocer la etiqueta ${requestedLabel} en la plantilla.`)
+    const originalLabel = labelOverride || firstText.slice(0, colon + 1)
+    const labelSuffix = firstText.slice(colon + 1)
+    const valueIndex = nodes.findIndex((node, index) => index > 0 && decodeXmlText(node[2]).trim())
+    if (valueIndex < 1) throw new Error(`La plantilla no tiene un valor de muestra para ${requestedLabel}.`)
+    const originalValue = decodeXmlText(nodes[valueIndex][2])
+    const hasSeparateSpace = nodes.slice(1, valueIndex).some(node => !decodeXmlText(node[2]).trim())
+    const leadingValueSpace = /^\s+/.exec(originalValue)?.[0] || ''
+    const insertSeparator = !labelSuffix && !hasSeparateSpace && !leadingValueSpace
+    const replacements = new Map([[0, `${originalLabel}${labelSuffix || (insertSeparator ? ' ' : '')}`], [valueIndex, `${leadingValueSpace}${value}`]])
+    let output = paragraph
+    // Replace from right to left so earlier byte offsets remain valid.
+    for (let index = nodes.length - 1; index >= 0; index -= 1) {
+      const node = nodes[index]
+      const replacement = replacements.has(index) ? replacements.get(index) : decodeXmlText(node[2]).trim() ? '' : node[2]
+      output = output.slice(0, node.index) + `${node[1]}${xml(replacement)}${node[3]}` + output.slice(node.index + node[0].length)
+    }
+    return output
+  }
+  const withoutRenderedBreaks = paragraph => paragraph.replace(/<w:lastRenderedPageBreak\b[^>]*\/?\s*>/g, '')
+  const ddtWord = async activitiesForExport => {
+    if (!window.PizZip) throw new Error('No se pudo cargar el lector de la plantilla institucional de Word.')
+    if (!Array.isArray(activitiesForExport) || !activitiesForExport.length) throw new Error('No hay capacitaciones asignadas a INTUR CENTRAL para noviembre 2026.')
+    const response = await fetch('assets/plan-ddt-template.docx')
+    if (!response.ok) throw new Error('No se encontró la plantilla oficial del Plan DDT.')
+    const zipFile = new window.PizZip(await response.arrayBuffer())
+    const documentPath = 'word/document.xml'
+    const original = zipFile.file(documentPath)?.asText()
+    const bodyMatch = original && /<w:body\b[^>]*>([\s\S]*?)<\/w:body>/.exec(original)
+    if (!bodyMatch) throw new Error('La plantilla oficial no contiene un cuerpo de documento editable.')
+    const usedParagraphIds = new Set([...original.matchAll(/\bw14:paraId="([A-Fa-f0-9]{8})"/g)].map(match => match[1].toUpperCase()))
+    const nextParagraphId = () => {
+      let id
+      do { id = Math.random().toString(16).slice(2, 10).padEnd(8, '0').toUpperCase() } while (usedParagraphIds.has(id))
+      usedParagraphIds.add(id); return id
+    }
+    const cloneParagraph = paragraph => withoutRenderedBreaks(paragraph).replace(/\bw14:paraId="[^"]+"/g, () => `w14:paraId="${nextParagraphId()}"`)
+    const body = bodyMatch[1]
+    const paragraphs = [...body.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)].map(match => match[0])
+    const nonempty = paragraphs.map((paragraph, index) => ({ paragraph, index, content: paragraphText(paragraph).trim() })).filter(item => item.content)
+    if (nonempty.length < 10) throw new Error('No se reconoció la estructura de la plantilla DDT.')
+    const titleTemplates = nonempty.slice(0, 3).map(item => withoutRenderedBreaks(item.paragraph))
+    const dateTemplate = nonempty.find(item => /^\p{L}+\s+\d{1,2}\s+de\s+septiembre\s+de\s+2026$/iu.test(item.content))?.paragraph
+    const activityTitleTemplate = nonempty.find(item => /^\d+\.\s+/.test(item.content))?.paragraph
+    const findField = label => nonempty.find(item => item.content.startsWith(`${label}:`))?.paragraph
+    const templates = {
+      date: dateTemplate,
+      title: activityTitleTemplate,
+      department: findField('Departamento'),
+      time: findField('Hora'),
+      place: findField('Lugar'),
+      participants: findField('Participan'),
+      projection: findField('Proyección de Participantes'),
+      responsible: findField('Responsable'),
+      departure: findField('Salida'),
+    }
+    if (Object.entries(templates).some(([key, value]) => key !== 'departure' && !value)) throw new Error('Faltan párrafos de formato requeridos en la plantilla DDT.')
+    const firstActivityEnd = paragraphs.findIndex(paragraph => paragraph === templates.responsible)
+    const blankTemplate = paragraphs.slice(firstActivityEnd + 1).find(paragraph => !paragraphText(paragraph).trim()) || '<w:p/>'
+    const sectionMatch = /<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>|<w:sectPr\b[^>]*\/>/.exec(body)
+    if (!sectionMatch) throw new Error('La plantilla no contiene su configuración original de página.')
+    const sorted = [...activitiesForExport].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')) || String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' }))
+    const byDate = new Map()
+    sorted.forEach(activity => {
+      const date = String(activity.date || '')
+      if (!byDate.has(date)) byDate.set(date, [])
+      byDate.get(date).push(activity)
+    })
+    const title = titleTemplates.map((paragraph, index) => index === 2 ? replaceParagraphText(paragraph, paragraphText(paragraph).replace(/SEPTIEMBRE/i, 'NOVIEMBRE')) : paragraph)
+    let nextNumber = 0
+    const content = [...byDate.entries()].map(([date, dailyActivities]) => {
+      const heading = replaceParagraphText(cloneParagraph(templates.date), ddtDateLabel(date))
+      const dailyContent = dailyActivities.map(activity => {
+        nextNumber += 1
+        const number = nextNumber
+        const topic = String(activity.topic || '').trim() || 'Pendiente de confirmar'
+        const titleParagraph = replaceParagraphText(cloneParagraph(templates.title), `${number}. ${topic}`)
+        const department = String(activity.delegation || '').trim() || 'Pendiente de confirmar'
+        const municipality = String(activity.municipality || '').trim()
+        const location = String(activity.location || '').trim()
+        const place = municipality && location && !location.toLocaleLowerCase('es-NI').includes(municipality.toLocaleLowerCase('es-NI')) ? `${municipality} — ${location}` : location || municipality || 'Pendiente de confirmar'
+        const scheduledTime = [activity.startTime, activity.endTime].filter(value => String(value || '').trim()).map(timeLabel).join(' – ') || 'Pendiente de confirmar'
+        const participants = String(activity.participatingInstitutions || '').trim() || 'Pendiente de confirmar'
+        const projected = Number(activity.projectedParticipants)
+        const projection = Number.isFinite(projected) && projected > 0 ? `${projected.toLocaleString('es-NI')} personas` : 'Pendiente de confirmar'
+        const responsible = String(activity.responsible || '').trim() || 'Pendiente de confirmar'
+        const observations = [activity.additionalDates ? `Fechas adicionales: ${String(activity.additionalDates).trim()}` : '', String(activity.observations || '').trim()].filter(Boolean).join(' · ')
+        const departureValue = String(activity.departureTime || activity.departure || '').trim()
+        return [
+          titleParagraph,
+          replaceFieldValue(cloneParagraph(templates.department), department, 'Departamento'),
+          replaceFieldValue(cloneParagraph(templates.time), scheduledTime, 'Hora'),
+          replaceFieldValue(cloneParagraph(templates.place), place, 'Lugar'),
+          replaceFieldValue(cloneParagraph(templates.participants), participants, 'Participan'),
+          replaceFieldValue(cloneParagraph(templates.projection), projection, 'Proyección de Participantes'),
+          replaceFieldValue(cloneParagraph(templates.responsible), responsible, 'Responsable'),
+          observations ? replaceFieldValue(cloneParagraph(templates.participants), observations, 'Observaciones', 'Observaciones:') : '',
+          departureValue && templates.departure ? replaceParagraphText(cloneParagraph(templates.departure), `Salida: ${timeLabel(departureValue)}`) : '',
+          cloneParagraph(blankTemplate),
+        ].filter(Boolean).join('')
+      }).join('')
+      return `${heading}${dailyContent}`
+    }).join('')
+    const replacementBody = `${title.join('')}${cloneParagraph(blankTemplate)}${content}${sectionMatch[0]}`
+    const bodyOpenEnd = bodyMatch[0].indexOf('>') + 1
+    const newDocument = `${original.slice(0, bodyMatch.index)}${bodyMatch[0].slice(0, bodyOpenEnd)}${replacementBody}</w:body>${original.slice(bodyMatch.index + bodyMatch[0].length)}`
+    zipFile.file(documentPath, newDocument)
+    download(zipFile.generate({ type: 'uint8array', compression: 'DEFLATE' }), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'PLAN_DDT_NOVIEMBRE_2026.docx')
   }
   const columnLetter = index => String.fromCharCode(65 + index)
   const timeLabel = value => {
@@ -221,5 +349,5 @@
     return zipFile.generate({ type: 'uint8array', compression: 'DEFLATE' })
   }
   const completePlan = rows => ({ complete: true, delegation: 'COMPLETO', activities: rows.flatMap(row => (row.activities || []).map(item => ({ ...item, delegation: row.delegation }))).sort((a, b) => String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' }) || String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || ''))) })
-  window.SATPlanExports={async word(plan){download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan.delegation))},async wordComplete(rows){const plan=completePlan(rows);download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx','COMPLETO'))},async excel(plan){download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan.delegation))},async excelComplete(rows){const plan=completePlan(rows);download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx','COMPLETO'))}}
+  window.SATPlanExports={async word(plan){download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan.delegation))},async wordComplete(rows){const plan=completePlan(rows);download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx','COMPLETO'))},async ddtWord(activities){await ddtWord(activities)},async excel(plan){download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan.delegation))},async excelComplete(rows){const plan=completePlan(rows);download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx','COMPLETO'))}}
 })()
