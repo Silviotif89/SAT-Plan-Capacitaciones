@@ -188,7 +188,8 @@
         const participants = String(activity.participatingInstitutions || '').trim() || 'Pendiente de confirmar'
         const projected = Number(activity.projectedParticipants)
         const projection = Number.isFinite(projected) && projected > 0 ? `${projected.toLocaleString('es-NI')} personas` : 'Pendiente de confirmar'
-        const responsible = String(activity.responsible || '').trim() || 'Pendiente de confirmar'
+        const isInturCentral = String(activity.trainingProvider || '').trim().toUpperCase() === 'INTUR CENTRAL'
+        const responsible = String((isInturCentral ? activity.ddtFacilitator : activity.responsible) || '').trim() || 'Pendiente de confirmar'
         const observations = [activity.additionalDates ? `Fechas adicionales: ${String(activity.additionalDates).trim()}` : '', String(activity.observations || '').trim()].filter(Boolean).join(' · ')
         const departureValue = String(activity.departureTime || activity.departure || '').trim()
         return [
