@@ -12,7 +12,7 @@
     'Costa Caribe': ['RACCN', 'RACCS']
   }
   const DELEGATIONS = Object.values(REGIONS).flat()
-  const PROVIDERS = ['INTUR CENTRAL', 'INATEC', 'MIFIC', 'MINSA', 'SETEC', 'BOMBEROS', 'POLICÍA', 'Delegación Departamental', 'Otra institución']
+  const PROVIDERS = ['INTUR CENTRAL', 'INATEC', 'MIFIC', 'MINSA', 'SETEC', 'BOMBEROS', 'POLICÍA', 'Cruz Blanca', 'Delegación Departamental', 'Otra institución']
   const ACTIVITY_TYPES = ['Capacitación', 'Taller', 'Curso', 'Seminario', 'Charla', 'Asistencia técnica', 'Otra']
   const MODALITIES = ['Presencial', 'Virtual', 'Híbrida']
   const DDT_FACILITATORS = ['Tania Rodríguez', 'Raúl Zambrana', 'Silvio Rodriguez', 'Karla Aburto', 'Andrea Guatemala', 'Patricia Hernández', 'Maria Guadalupe Munguia']
@@ -400,6 +400,7 @@
       .replace(/[\u0300-\u036f]/g, '')
       .trim()
       .replace(/\s+/g, ' ')
+      .replace(/^cra\.?\s+/i, '')
       .toLocaleLowerCase('es-NI')
   }
   function assignmentSelect(value) {
