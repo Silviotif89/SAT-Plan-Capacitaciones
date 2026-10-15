@@ -342,6 +342,11 @@
     const session = getAdminSession()
     if (!session) throw new Error('La sesión administrativa expiró. Iniciá sesión nuevamente.')
     const plans = await loadAllSubmittedPlans(session.accessToken)
+    const globalPlanActivities = plans.flatMap(row => (Array.isArray(row.activities) ? row.activities : [])
+      .filter(activity => activity && !activity.draft && String(activity.date || '').startsWith('2026-11-'))
+      .map(activity => ({ activity, delegation: row.delegation })))
+    globalPlanActivities.sort((a, b) => String(a.activity.date || '').localeCompare(String(b.activity.date || '')) || String(a.activity.startTime || '').localeCompare(String(b.activity.startTime || '')) || String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' }))
+    const globalNumberByActivity = new Map(globalPlanActivities.map((entry, index) => [entry.activity, index + 1]))
     const seenIds = new Set()
     const activities = []
     plans.forEach(row => {
@@ -352,7 +357,7 @@
         const activityId = activity.id == null ? '' : String(activity.id).trim()
         if (activityId && seenIds.has(activityId)) return
         if (activityId) seenIds.add(activityId)
-        activities.push({ ...activity, delegation: row.delegation, planStatus: row.status })
+        activities.push({ ...activity, globalNumber: globalNumberByActivity.get(activity), delegation: row.delegation, planStatus: row.status })
       })
     })
     return activities.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.startTime || '').localeCompare(String(b.startTime || '')) || String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' }))

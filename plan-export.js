@@ -172,12 +172,11 @@
       byDate.get(date).push(activity)
     })
     const title = titleTemplates.map((paragraph, index) => index === 2 ? replaceParagraphText(paragraph, paragraphText(paragraph).replace(/SEPTIEMBRE/i, 'NOVIEMBRE')) : paragraph)
-    let nextNumber = 0
+    let fallbackNumber = 0
     const content = [...byDate.entries()].map(([date, dailyActivities]) => {
       const heading = replaceParagraphText(cloneParagraph(templates.date), ddtDateLabel(date))
       const dailyContent = dailyActivities.map(activity => {
-        nextNumber += 1
-        const number = nextNumber
+        const number = Number.isInteger(Number(activity.globalNumber)) && Number(activity.globalNumber) > 0 ? Number(activity.globalNumber) : ++fallbackNumber
         const topic = String(activity.topic || '').trim() || 'Pendiente de confirmar'
         const titleParagraph = replaceParagraphText(cloneParagraph(templates.title), `${number}. ${topic}`)
         const department = String(activity.delegation || '').trim() || 'Pendiente de confirmar'
