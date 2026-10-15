@@ -133,7 +133,12 @@
     if (!sheetDataMatch) throw new Error('La plantilla Excel no contiene la tabla principal.')
     const rows = [...(plan.activities || [])]
       .filter(item => !item.draft && String(item.date || '').startsWith('2026-11-'))
-      .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')))
+      .sort((a, b) => {
+        const delegationOrder = plan.complete
+          ? String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' })
+          : 0
+        return delegationOrder || String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || ''))
+      })
       .map((item, index) => [
         index + 1, String(item.delegation || plan.delegation || '').toUpperCase(), item.municipality || '', item.topic || '', scheduleLabel(item), '', '', '', '', '', dateCell(item),
         item.projectedParticipants === '' || item.projectedParticipants == null || !Number.isFinite(Number(item.projectedParticipants)) ? '' : Number(item.projectedParticipants), facilitatorLabel(item), observationCell(item),
@@ -178,6 +183,7 @@
     if (headerRows.length !== 3) throw new Error('La plantilla no contiene sus tres filas de encabezado.')
     const columnHeadings = headerRows.findIndex(row => /<row\b[^>]*\br="3"/.test(row))
     headerRows[columnHeadings] = headerRows[columnHeadings].replace(/<c\b([^>]*\br="E3"[^>]*)>[\s\S]*?<\/c>/, (_, attributes) => `<c${attributes.replace(/\s+t="[^"]*"/, '')} t="inlineStr"><is><t>Horario</t></is></c>`)
+    const merges = ['A1:M1', 'A2:M2', ...verticalMergeRanges(rows, 1)]
     const dataRows = rows.map((values, rowIndex) => {
       const rowNumber = rowIndex + 4
       const cells = values.map((value, index) => {
@@ -190,7 +196,6 @@
       const attributes = rowAttributes.replace(/\br="4"/, `r="${rowNumber}"`).replace(/\s+hidden="[^"]*"/, '')
       return `<row${attributes}>${cells}</row>`
     })
-    const merges = ['A1:M1', 'A2:M2', ...[1, 2, 9].flatMap(column => verticalMergeRanges(rows, column))]
     const endRow = rows.length + 3
     sheetXml = sheetXml.replace(sheetDataMatch[0], `<sheetData>${headerRows.join('')}${dataRows.join('')}</sheetData>`)
     sheetXml = sheetXml.replace(/<mergeCells\b[^>]*>[\s\S]*?<\/mergeCells>/, `<mergeCells count="${merges.length}">${merges.map(ref => `<mergeCell ref="${ref}"/>`).join('')}</mergeCells>`)
@@ -211,6 +216,6 @@
     if (coreXml) zipFile.file(corePath, coreXml.replace(/<dc:creator>[\s\S]*?<\/dc:creator>/, '<dc:creator>INTUR</dc:creator>').replace(/<cp:lastModifiedBy>[\s\S]*?<\/cp:lastModifiedBy>/, '<cp:lastModifiedBy>INTUR</cp:lastModifiedBy>'))
     return zipFile.generate({ type: 'uint8array', compression: 'DEFLATE' })
   }
-  const completePlan = rows => ({ complete: true, delegation: 'COMPLETO', activities: rows.flatMap(row => (row.activities || []).map(item => ({ ...item, delegation: row.delegation }))).sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')) || String(a.delegation || '').localeCompare(String(b.delegation || ''))) })
+  const completePlan = rows => ({ complete: true, delegation: 'COMPLETO', activities: rows.flatMap(row => (row.activities || []).map(item => ({ ...item, delegation: row.delegation }))).sort((a, b) => String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' }) || String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || ''))) })
   window.SATPlanExports={async word(plan){download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan.delegation))},async wordComplete(rows){const plan=completePlan(rows);download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx','COMPLETO'))},async excel(plan){download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan.delegation))},async excelComplete(rows){const plan=completePlan(rows);download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx','COMPLETO'))}}
 })()
