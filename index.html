@@ -48,6 +48,7 @@
 
       <section class="metrics" aria-label="Resumen del plan">
         <article class="metric-activities"><span>▤</span><div><small>Capacitaciones</small><strong id="activityCount">0</strong></div></article>
+        <article class="cancelled-metric"><span>⛔</span><div><small>Canceladas</small><strong id="cancelledCount">0</strong></div></article>
         <article class="metric-projection"><span>♟</span><div><small>Proyección total</small><strong id="participantCount">0</strong></div></article>
         <article class="metric-delegation"><span>⌖</span><div><small>Delegación</small><strong id="delegationMetric">—</strong></div></article>
         <article class="metric-saved"><span>◷</span><div><small>Último guardado</small><strong id="lastSaved">Pendiente</strong></div></article>
@@ -73,10 +74,11 @@
 
     <section id="adminView" class="admin-view" hidden>
       <div id="adminDashboard">
-      <div class="admin-bar"><div><span class="eyebrow dark">Consola administrativa</span><h2>Seguimiento del Plan de Noviembre</h2><p>Vista central de delegaciones, responsables y capacitaciones registradas.</p></div><div class="admin-action-stack"><div class="admin-main-actions"><button class="button word" id="adminDownloadComplete" type="button" disabled>▣ Descargar plan completo noviembre</button><button class="button excel" id="adminDownloadExcelComplete" type="button" disabled>▦ Descargar Excel completo noviembre</button><button class="button excel" id="adminDownloadCentral" type="button" disabled>Exportar para SAT Central</button><button class="button secondary" id="assignDdtStaff" type="button">👥 Asignar personal DDT</button></div><div class="admin-session-actions"><button class="button plan-ddt" id="adminPlanDdt" type="button">▤ Plan DDT</button><button class="button ghost" id="adminLogout" type="button">Cerrar sesión</button></div></div></div>
+      <div class="admin-bar"><div><span class="eyebrow dark">Consola administrativa</span><h2>Seguimiento del Plan de Noviembre</h2><p>Vista central de delegaciones, responsables y capacitaciones registradas.</p></div><div class="admin-action-stack"><div class="admin-main-actions"><button class="button word" id="adminDownloadComplete" type="button" disabled>▣ Descargar plan completo noviembre</button><button class="button excel" id="adminDownloadExcelComplete" type="button" disabled>▦ Descargar Excel completo noviembre</button><button class="button excel" id="adminDownloadCentral" type="button" disabled>Exportar para SAT Central</button><button class="button secondary" id="assignDdtStaff" type="button">👥 Asignar personal DDT</button><button class="button cancelled-action" id="adminCancelledOpen" type="button">⛔ Capacitaciones canceladas</button></div><div class="admin-session-actions"><button class="button plan-ddt" id="adminPlanDdt" type="button">▤ Plan DDT</button><button class="button ghost" id="adminLogout" type="button">Cerrar sesión</button></div></div></div>
       <section class="metrics admin-metrics">
         <article><span>🗺️</span><div><small>Delegaciones con registro</small><strong id="adminDelegations">0 / 17</strong></div></article>
         <article><span>📚</span><div><small>Capacitaciones</small><strong id="adminActivities">0</strong></div></article>
+        <article class="cancelled-metric"><span>⛔</span><div><small>Canceladas</small><strong id="adminCancelled">0</strong></div></article>
         <article><span>👥</span><div><small>Proyección total</small><strong id="adminParticipants">0</strong></div></article>
         <article><span>✅</span><div><small>Planes enviados</small><strong id="adminSubmitted">0</strong></div></article>
       </section>
@@ -120,6 +122,23 @@
       <button class="dialog-close" value="cancel" aria-label="Cerrar">×</button>
       <span class="lock">👥</span><span class="eyebrow dark">Coordinación DDT</span><h2>Asignar personal DDT</h2><p>Calendario de noviembre de 2026. Elegí quién facilitará cada capacitación de INTUR CENTRAL desde el día en que está programada.</p>
       <div class="assignment-list" id="assignmentList"></div>
+    </form>
+  </dialog>
+
+  <dialog id="cancelledDialog" class="cancelled-dialog">
+    <div class="cancelled-dialog-head"><div><span class="eyebrow dark">Historial administrativo</span><h2>Capacitaciones canceladas</h2><p id="cancelledSummary">Consulta las cancelaciones registradas.</p></div><button class="dialog-close" id="cancelledClose" type="button" aria-label="Cerrar">×</button></div>
+    <div class="cancelled-filters"><label>Mes<select id="cancelledMonth"><option value="">Todos los meses</option><option value="2026-11">Noviembre 2026</option></select></label><label>Delegación<select id="cancelledDelegation"><option value="">Todas las delegaciones</option></select></label><button class="button word" id="cancelledDownload" type="button">▣ Descargar informe Word</button></div>
+    <div id="cancelledList" class="cancelled-list"></div>
+  </dialog>
+
+  <dialog id="activityCancelDialog" class="admin-dialog cancellation-form">
+    <form method="dialog" id="activityCancelForm">
+      <button class="dialog-close" id="activityCancelClose" value="cancel" aria-label="Cerrar">×</button>
+      <span class="lock">⛔</span><span class="eyebrow dark">Cancelar capacitación</span><h2 id="cancelActivityTitle">Confirmar cancelación</h2>
+      <p id="cancelActivityContext"></p>
+      <label>Motivo de cancelación<textarea id="cancelReason" required maxlength="1000" placeholder="Explicá brevemente por qué no se realizará la capacitación."></textarea></label>
+      <p class="form-error" id="cancelError" role="alert"></p>
+      <div class="dialog-actions"><button class="button ghost" id="cancelGoBack" value="cancel" type="submit">Volver</button><button class="button admin-danger" id="confirmCancelActivity" type="button">Confirmar cancelación</button></div>
     </form>
   </dialog>
 

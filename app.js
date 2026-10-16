@@ -22,8 +22,11 @@
   const makeId = () => crypto.randomUUID ? crypto.randomUUID() : `sat-${Date.now()}-${Math.random().toString(36).slice(2)}`
   const now = () => new Date().toISOString()
   const formatDateTime = value => value ? new Intl.DateTimeFormat('es-NI', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : 'Pendiente'
+  const isCancelled = item => String(item?.status || '').toUpperCase() === 'CANCELADA'
+  const activeActivities = items => (items || []).filter(item => !item.draft && !isCancelled(item))
+  const cancelledActivities = items => (items || []).filter(isCancelled)
   const blankActivity = () => ({ id: makeId(), draft: true, activityType: 'Capacitación', topic: '', date: '2026-11-02', additionalDates: '', startTime: '08:00', endTime: '12:00', municipality: '', location: '', modality: 'Presencial', trainingProvider: '', ddtFacilitator: '', participatingInstitutions: '', responsible: '', projectedParticipants: 25, observations: '' })
-  const blankPlan = delegation => ({ remoteId: '', editToken: makeId(), region: regionFor(delegation), delegation, registrantName: '', registrantRole: '', registrantEmail: '', registrantPhone: '', status: 'BORRADOR', activities: [], createdAt: now(), updatedAt: now() })
+  const blankPlan = delegation => ({ remoteId: '', remoteUpdatedAt: '', editToken: makeId(), region: regionFor(delegation), delegation, registrantName: '', registrantRole: '', registrantEmail: '', registrantPhone: '', status: 'BORRADOR', activities: [], createdAt: now(), updatedAt: now() })
 
   let store = loadStore()
   let adminRows = []
@@ -31,10 +34,12 @@
   let savingPlan = false
   let editingActivityId = null
   let editingSnapshot = null
+  let pendingCancel = null
 
   function regionFor(delegation) { return Object.keys(REGIONS).find(region => REGIONS[region].includes(delegation)) || 'Pacífico' }
   function normalizeActivityProvider(activity) {
     if (activity?.trainingProvider === 'INTUR') activity.trainingProvider = 'INTUR CENTRAL'
+    if (!activity.status) activity.status = 'PROGRAMADA'
     return activity
   }
   function migrateProviderNames(saved) {
@@ -79,6 +84,39 @@
     if (!response.ok) { const error = new Error(body?.message || body?.error_description || `Error ${response.status}`); error.status = response.status; throw error }
     return body
   }
+  function activitiesFromRemote(row) { return (row.activities || []).map(item => normalizeActivityProvider(clone(item))) }
+  function mergeRemoteActivities(localItems, remoteItems) {
+    const localById = new Map((localItems || []).map(item => [item.id, item]))
+    const merged = (remoteItems || []).map(remoteItem => {
+      const localItem = localById.get(remoteItem.id)
+      if (!localItem) return clone(remoteItem)
+      localById.delete(remoteItem.id)
+      const result = localItem.draft ? { ...remoteItem, ...localItem } : { ...localItem, ...remoteItem }
+      if (isCancelled(remoteItem)) Object.assign(result, { status: 'CANCELADA', cancellationReason: remoteItem.cancellationReason, cancelledAt: remoteItem.cancelledAt, cancelledBy: remoteItem.cancelledBy, cancelledByRole: remoteItem.cancelledByRole })
+      return result
+    })
+    return [...merged, ...[...localById.values()].filter(item => item.draft)]
+  }
+  function mergePlanFromRemote(localPlan, row) {
+    localPlan.remoteId = row.id; localPlan.remoteUpdatedAt = row.updated_at || localPlan.remoteUpdatedAt
+    localPlan.updatedAt = row.updated_at || localPlan.updatedAt; localPlan.createdAt = row.created_at || localPlan.createdAt
+    localPlan.region = row.region || localPlan.region; localPlan.delegation = row.delegation || localPlan.delegation
+    localPlan.registrantName = localPlan.registrantName || row.registrant_name || ''
+    localPlan.registrantRole = localPlan.registrantRole || row.registrant_role || ''
+    localPlan.registrantEmail = localPlan.registrantEmail || row.registrant_email || ''
+    localPlan.registrantPhone = localPlan.registrantPhone || row.registrant_phone || ''
+    localPlan.status = row.status || localPlan.status
+    localPlan.activities = mergeRemoteActivities(localPlan.activities, activitiesFromRemote(row))
+    persistLocal()
+  }
+  async function refreshSelectedPlanFromRemote() {
+    const current = plan()
+    if (!configured || !current.editToken) return false
+    const query = current.remoteId ? `id=eq.${encodeURIComponent(current.remoteId)}` : `edit_token=eq.${encodeURIComponent(current.editToken)}`
+    const rows = await api(`/rest/v1/${TABLE}?${query}&select=*`, {}, '', current.editToken)
+    if (!rows?.length) return false
+    mergePlanFromRemote(current, rows[0]); renderPlan(); return true
+  }
   function connectionBanner() {
     const box = $('connection'); box.classList.add('visible', configured ? 'ok' : 'warning')
     box.textContent = configured ? '● Conexión central activa. Guardar actividad conserva el borrador y Enviar plan lo registra para la DDT.' : '⚠ Configuración pendiente: el formulario conserva borradores locales, pero todavía no puede reunir información de varias delegaciones. Completá config.js y Supabase antes de publicarlo.'
@@ -89,9 +127,9 @@
     $('region').addEventListener('change', () => {
       editingActivityId = null; editingSnapshot = null
       const first = REGIONS[$('region').value][0]
-      store.selectedDelegation = first; setOptions($('delegation'), REGIONS[$('region').value], first); ensureSelectedPlan(); renderPlan()
+      store.selectedDelegation = first; setOptions($('delegation'), REGIONS[$('region').value], first); ensureSelectedPlan(); renderPlan(); refreshSelectedPlanFromRemote().catch(() => {})
     })
-    $('delegation').addEventListener('change', () => { editingActivityId = null; editingSnapshot = null; store.selectedDelegation = $('delegation').value; ensureSelectedPlan(); renderPlan() })
+    $('delegation').addEventListener('change', () => { editingActivityId = null; editingSnapshot = null; store.selectedDelegation = $('delegation').value; ensureSelectedPlan(); renderPlan(); refreshSelectedPlanFromRemote().catch(() => {}) })
   }
   function ensureSelectedPlan() { plan(); persistLocal() }
   function bindProfile() {
@@ -110,8 +148,9 @@
   }
   function renderSummary() {
     const current = plan()
-    const savedActivities = current.activities.filter(item => !item.draft)
+    const savedActivities = activeActivities(current.activities)
     $('activityCount').textContent = savedActivities.length
+    $('cancelledCount').textContent = cancelledActivities(current.activities).length
     $('participantCount').textContent = savedActivities.reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0).toLocaleString('es-NI')
     $('delegationMetric').textContent = current.delegation
     $('headerDelegationName').textContent = current.delegation
@@ -158,15 +197,19 @@
     headers.forEach(value => headerRow.append(text('th', value))); thead.append(headerRow)
     const tbody = document.createElement('tbody')
     visibleItems.forEach((item, index) => {
-      const row = document.createElement('tr')
-      const values = [String(index + 1), item.topic || 'Sin tema', formatActivityDate(item.date), `${formatActivityTime(item.startTime)} – ${formatActivityTime(item.endTime)}`, item.municipality || '—', item.location || '—', item.trainingProvider || '—', Number(item.projectedParticipants || 0).toLocaleString('es-NI'), 'Registrada']
-      values.forEach((value, cellIndex) => { const cell = document.createElement('td'); cell.dataset.label = headers[cellIndex]; if (cellIndex === 8) { const badge = text('span', value, 'saved-pill'); cell.append(badge) } else cell.textContent = value; row.append(cell) })
+      const cancelled = isCancelled(item); const row = document.createElement('tr'); if (cancelled) row.className = 'is-cancelled'
+      const values = [String(index + 1), item.topic || 'Sin tema', formatActivityDate(item.date), `${formatActivityTime(item.startTime)} – ${formatActivityTime(item.endTime)}`, item.municipality || '—', item.location || '—', item.trainingProvider || '—', Number(item.projectedParticipants || 0).toLocaleString('es-NI'), cancelled ? 'Cancelada' : 'Registrada']
+      values.forEach((value, cellIndex) => { const cell = document.createElement('td'); cell.dataset.label = headers[cellIndex]; if (cellIndex === 8) { const badge = text('span', value, cancelled ? 'cancelled-badge' : 'saved-pill'); cell.append(badge) } else if (cellIndex === 1 && cancelled) { cell.append(text('span', value), text('small', `Motivo: ${item.cancellationReason || 'No indicado'} · ${formatDateTime(item.cancelledAt)}`, 'cancelled-table-reason')) } else cell.textContent = value; row.append(cell) })
       const actions = document.createElement('td'); actions.dataset.label = 'Acciones'; actions.className = 'table-actions'
-      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'table-action edit'; edit.append(icon('M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z')); edit.title = `Editar ${item.topic || 'capacitación'}`; edit.setAttribute('aria-label', edit.title)
-      edit.onclick = () => { editingActivityId = item.id; editingSnapshot = clone(item); renderActivities() }
-      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'table-action delete'; remove.append(icon('M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6 M10 11v5 M14 11v5')); remove.title = `Eliminar ${item.topic || 'capacitación'}`; remove.setAttribute('aria-label', remove.title)
-      remove.onclick = () => { if (confirm('¿Eliminar esta capacitación del plan?')) { const itemIndex = current.activities.findIndex(activity => activity.id === item.id); if (itemIndex >= 0) current.activities.splice(itemIndex, 1); saveLocalAndRender(); renderActivities() } }
-      actions.append(edit, remove); row.append(actions); tbody.append(row)
+      if (!cancelled) {
+        const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'table-action edit'; edit.append(icon('M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z')); edit.title = `Editar ${item.topic || 'capacitación'}`; edit.setAttribute('aria-label', edit.title)
+        edit.onclick = () => { editingActivityId = item.id; editingSnapshot = clone(item); renderActivities() }
+        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'table-action delete'; remove.append(icon('M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6 M10 11v5 M14 11v5')); remove.title = `Eliminar ${item.topic || 'capacitación'}`; remove.setAttribute('aria-label', remove.title)
+        remove.onclick = () => { if (confirm('¿Eliminar esta capacitación del plan?')) { const itemIndex = current.activities.findIndex(activity => activity.id === item.id); if (itemIndex >= 0) current.activities.splice(itemIndex, 1); saveLocalAndRender(); renderActivities() } }
+        const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'table-action cancel'; cancel.textContent = '×'; cancel.title = `Cancelar ${item.topic || 'capacitación'}`; cancel.setAttribute('aria-label', cancel.title); cancel.disabled = !current.remoteId; cancel.onclick = () => openCancellation(current, item, 'delegate')
+        actions.append(edit, remove, cancel)
+      } else actions.textContent = '—'
+      row.append(actions); tbody.append(row)
     })
     table.append(thead, tbody); wrapper.append(table); root.append(wrapper)
   }
@@ -177,12 +220,15 @@
     $('addActivityTop').disabled = current.activities.some(item => item.draft) || Boolean(editingActivityId)
     current.activities.forEach((item, index) => {
       if (!item.draft && item.id !== editingActivityId) return
-      const article = document.createElement('article'); article.className = 'activity-card'; article.dataset.activityId = item.id
+      const cancelled = isCancelled(item)
+      const article = document.createElement('article'); article.className = `activity-card${cancelled ? ' is-cancelled' : ''}`; article.dataset.activityId = item.id
       const head = document.createElement('div'); head.className = 'activity-head'
       const title = document.createElement('strong'); title.textContent = `${editingActivityId === item.id ? 'Editar capacitación' : 'Nueva capacitación'} · ${index + 1}`
-      const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Eliminar'
-      remove.onclick = () => { if (confirm('¿Eliminar esta capacitación del plan?')) { current.activities.splice(index, 1); if (editingActivityId === item.id) { editingActivityId = null; editingSnapshot = null } saveLocalAndRender(); renderActivities() } }
-      head.append(title, remove)
+      const status = document.createElement('div'); status.className = 'activity-status'
+      if (cancelled) status.append(text('span', 'CANCELADA', 'cancelled-badge'))
+      else if (item.draft) { const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Eliminar borrador'; remove.onclick = () => { if (confirm('¿Quitar esta actividad que todavía no se ha guardado?')) { current.activities.splice(index, 1); saveLocalAndRender(); renderActivities() } }; status.append(remove) }
+      else if (editingActivityId === item.id) { const cancelEdit = document.createElement('button'); cancelEdit.type = 'button'; cancelEdit.textContent = 'Descartar cambios'; cancelEdit.onclick = () => { const itemIndex = current.activities.findIndex(activity => activity.id === item.id); if (itemIndex >= 0 && editingSnapshot) current.activities[itemIndex] = editingSnapshot; editingActivityId = null; editingSnapshot = null; persistLocal(); renderActivities(); renderSummary() }; status.append(cancelEdit) }
+      head.append(title, status)
       const grid = document.createElement('div'); grid.className = 'activity-grid'
       const activityType = bindActivityControl(selectControl(ACTIVITY_TYPES, item.activityType), item, 'activityType')
       const topic = bindActivityControl(inputControl(item.topic), item, 'topic'); topic.placeholder = 'Ej. Taller de elaboración de cócteles y aperitivos'
@@ -205,22 +251,33 @@
         label('Institución que imparte', provider), label('Participan', participants, 'Instituciones o actores que acompañan la actividad.', 'wide'), label('Responsable', responsible), label('Proyección de participantes', projection, '', 'projection-only')
       )
       grid.append(label('Observaciones', observations, '', 'full'))
+      if (cancelled) {
+        grid.querySelectorAll('input,select,textarea').forEach(control => { control.disabled = true })
+        const reason = document.createElement('div'); reason.className = 'cancelled-reason'
+        reason.textContent = `Motivo: ${item.cancellationReason || 'No indicado'} · Cancelada: ${formatDateTime(item.cancelledAt)}`
+        grid.append(reason)
+      }
       const actions = document.createElement('div'); actions.className = 'card-save'
       const save = document.createElement('button'); save.type = 'button'; save.className = 'button secondary'; save.textContent = editingActivityId === item.id ? 'Guardar cambios' : 'Guardar actividad'; save.dataset.saveActivity = item.id; save.onclick = () => saveActivity(item)
-      actions.append(save)
-      if (editingActivityId === item.id) {
-        const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'button ghost'; cancel.textContent = 'Cancelar'; cancel.onclick = () => { const originalIndex = current.activities.findIndex(activity => activity.id === item.id); if (originalIndex >= 0 && editingSnapshot) current.activities[originalIndex] = editingSnapshot; editingActivityId = null; editingSnapshot = null; persistLocal(); renderActivities(); renderSummary() }
-        actions.append(cancel)
-      }
+      if (!cancelled && item.draft) actions.append(save)
       article.append(head, grid, actions); root.append(article)
     })
   }
   function addActivity() { if (plan().activities.some(item => item.draft) || editingActivityId) return; plan().activities.push(blankActivity()); saveLocalAndRender(); renderActivities(); document.querySelector('.activity-card:last-child')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
   async function saveActivity(item) {
-    item.draft = false; if (editingActivityId === item.id) { editingActivityId = null; editingSnapshot = null } plan().status = 'BORRADOR'; plan().updatedAt = now(); persistLocal(); renderActivities(); renderSummary()
+    const wasEditing = editingActivityId === item.id; const original = wasEditing ? editingSnapshot : null
+    item.draft = false; if (wasEditing) { editingActivityId = null; editingSnapshot = null } plan().status = 'BORRADOR'; plan().updatedAt = now(); persistLocal(); renderActivities(); renderSummary()
     $('saveMessage').textContent = 'Actividad guardada como borrador. Ya podés agregar otra actividad o continuar con el plan.'
     toast('Actividad guardada como borrador.')
-    if (!validatePlan(false).length) await savePlan('BORRADOR')
+    if (!validatePlan(false).length) {
+      const saved = await savePlan('BORRADOR')
+      if (!saved) {
+        const itemIndex = plan().activities.findIndex(activity => activity.id === item.id)
+        if (wasEditing && original && itemIndex >= 0) { plan().activities[itemIndex] = original; editingActivityId = item.id; editingSnapshot = original }
+        else item.draft = true
+        persistLocal(); renderActivities(); renderSummary()
+      }
+    }
   }
   function clearFieldError(control) {
     if (!control) return
@@ -281,24 +338,33 @@
     return { region: current.region, delegation: current.delegation, registrant_name: current.registrantName.trim(), registrant_role: current.registrantRole.trim(), registrant_email: current.registrantEmail.trim(), registrant_phone: current.registrantPhone.trim(), activities: clone(current.activities), status, edit_token: current.editToken, updated_at: now() }
   }
   async function savePlan(status) {
-    if (savingPlan) return
+    if (savingPlan) return false
     const finalSubmission = status === 'ENVIADO'; const issues = validatePlan(finalSubmission)
-    if (issues.length) { showValidationIssues(issues); toast('Completá los campos resaltados en rojo.'); return }
-    if (!configured) { persistLocal(); toast('Borrador local guardado. Falta conectar Supabase para registrar la información en línea.'); return }
+    if (issues.length) { showValidationIssues(issues); toast('Completá los campos resaltados en rojo.'); return false }
+    if (!configured) { persistLocal(); toast('Borrador local guardado. Falta conectar Supabase para registrar la información en línea.'); return false }
     const current = plan(); const payload = remotePayload(current, status)
     savingPlan = true; const submit = $('submitPlan'); const submitText = submit.textContent
     submit.disabled = true; submit.textContent = status === 'ENVIADO' ? 'Enviando plan…' : submitText
     try {
       let rows
-      if (current.remoteId) rows = await api(`/rest/v1/${TABLE}?id=eq.${encodeURIComponent(current.remoteId)}&select=*`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }, '', current.editToken)
+      if (current.remoteId) {
+        if (!current.remoteUpdatedAt) {
+          const latest = await api(`/rest/v1/${TABLE}?id=eq.${encodeURIComponent(current.remoteId)}&select=*`, {}, '', current.editToken)
+          if (!latest?.length) throw new Error('No se pudo verificar el plan en línea. Actualizá la página antes de guardar.')
+          current.remoteUpdatedAt = latest[0].updated_at
+        }
+        rows = await api(`/rest/v1/${TABLE}?id=eq.${encodeURIComponent(current.remoteId)}&updated_at=eq.${encodeURIComponent(current.remoteUpdatedAt)}&select=*`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }, '', current.editToken)
+      }
       else rows = await api(`/rest/v1/${TABLE}?select=*`, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...payload, created_at: now() }) }, '', current.editToken)
-      if (!rows?.length) throw new Error('No se confirmó el guardado. Verificá que el navegador conserve el acceso de edición.')
-      current.remoteId = rows[0].id; current.status = status; current.updatedAt = rows[0].updated_at || now(); persistLocal(); clearValidationErrors(); renderSummary()
+      if (!rows?.length) throw new Error('No se guardó: el plan cambió desde la última consulta. Actualizá la página, revisá los cambios y volvé a guardar para no perder información.')
+      current.remoteId = rows[0].id; current.remoteUpdatedAt = rows[0].updated_at || now(); current.status = status; current.updatedAt = current.remoteUpdatedAt; persistLocal(); clearValidationErrors(); renderSummary()
       $('saveMessage').textContent = status === 'ENVIADO' ? 'Plan enviado correctamente a la DDT.' : 'Borrador guardado en línea.'
       toast(status === 'ENVIADO' ? 'Plan enviado correctamente.' : 'Borrador guardado en línea.')
+      return true
     } catch (error) {
       const message = error.status === 409 ? 'Esta delegación ya tiene un plan registrado desde otro navegador. Contactá a la DDT para recuperar el acceso.' : `No se pudo guardar: ${error.message}`
       $('saveMessage').textContent = message; toast(message)
+      return false
     } finally { savingPlan = false; submit.disabled = false; submit.textContent = submitText }
   }
   async function loadPlanForExcel(sourcePlan) {
@@ -352,7 +418,7 @@
     plans.forEach(row => {
       if (row.status !== 'ENVIADO' || !Array.isArray(row.activities)) return
       row.activities.forEach(activity => {
-        if (!activity || activity.draft || !/^2026-11-(0[1-9]|[12]\d|30)$/.test(String(activity.date || ''))) return
+        if (!activity || activity.draft || isCancelled(activity) || !/^2026-11-(0[1-9]|[12]\d|30)$/.test(String(activity.date || ''))) return
         if (String(activity.trainingProvider || '').trim() !== 'INTUR CENTRAL') return
         const activityId = activity.id == null ? '' : String(activity.id).trim()
         if (activityId && seenIds.has(activityId)) return
@@ -452,7 +518,7 @@
   }
   function exportForSatCentral(button) {
     const plans = adminRows.filter(row => row.status === 'ENVIADO')
-    const activities = plans.flatMap(row => (row.activities || []).filter(activity => !activity.draft).map(activity => ({
+    const activities = plans.flatMap(row => (row.activities || []).filter(activity => !activity.draft && !isCancelled(activity)).map(activity => ({
       sourceId: activity.id, delegation: row.delegation, topic: String(activity.topic || '').trim(), activityType: activity.activityType || 'Capacitación',
       date: activity.date || '', time: activity.startTime || '', municipality: activity.municipality || '', location: activity.location || '',
       responsible: activity.responsible || '', institution: activity.participatingInstitutions || '', modality: activity.modality || 'Presencial',
@@ -478,7 +544,7 @@
   function getAdminSession() { try { const value = JSON.parse(sessionStorage.getItem(ADMIN_SESSION_KEY) || 'null'); return value && value.expiresAt > Date.now() ? value : null } catch (_) { return null } }
   async function showAdmin(token) {
     $('delegateView').hidden = true; $('adminView').hidden = false
-    try { adminRows = await api(`/rest/v1/${TABLE}?select=*&order=updated_at.desc`, {}, token); adminRows.forEach(row => (row.activities || []).forEach(normalizeActivityProvider)); renderAdmin() }
+    try { adminRows = await api(`/rest/v1/${TABLE}?select=*&order=updated_at.desc`, {}, token); adminRows.forEach(row => (row.activities || []).forEach(normalizeActivityProvider)); renderAdmin(); renderCancelledReport() }
     catch (error) { toast(`No se pudo abrir el informe: ${error.message}`); adminRows = []; renderAdmin() }
   }
   function text(tag, value, className = '') { const node = document.createElement(tag); node.textContent = value; if (className) node.className = className; return node }
@@ -530,7 +596,7 @@
   }
   function renderAssignments() {
     const root = $('assignmentList'); root.replaceChildren()
-    const assignments = adminRows.flatMap(row => (row.activities || []).map((activity, index) => ({ row, activity, index })).filter(({ activity }) => isCentralTraining(activity)))
+    const assignments = adminRows.flatMap(row => (row.activities || []).map((activity, index) => ({ row, activity, index })).filter(({ activity }) => isCentralTraining(activity) && !isCancelled(activity)))
     if (!assignments.length) {
       root.append(text('div', 'Aún no hay capacitaciones registradas con “INTUR CENTRAL” como institución que imparte.', 'assignment-empty'))
       return
@@ -590,12 +656,111 @@
     card.append(heading, controls); return card
   }
   function openAssignmentDialog() { renderAssignments(); $('assignmentDialog').showModal() }
+  function openCancellation(sourcePlan, item, mode) {
+    if (mode === 'delegate' && !sourcePlan.remoteId) { toast('Enviá primero el plan para registrar la cancelación en línea.'); return }
+    pendingCancel = { rowId: sourcePlan.id || sourcePlan.remoteId, itemId: item.id, mode }
+    $('cancelActivityTitle').textContent = item.topic || 'Capacitación sin tema'
+    $('cancelActivityContext').textContent = `${sourcePlan.delegation} · ${item.date || 'Sin fecha'}. La información original se conservará en el historial.`
+    $('cancelReason').value = ''; $('cancelError').textContent = ''
+    $('activityCancelDialog').showModal()
+    $('cancelReason').focus()
+  }
+  function adminEmailFromToken(token) {
+    try { return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '' } catch (_) { return '' }
+  }
+  async function confirmActivityCancellation() {
+    const reason = $('cancelReason').value.trim()
+    if (!reason) { $('cancelError').textContent = 'Escribí el motivo de cancelación para continuar.'; $('cancelReason').focus(); return }
+    if (!pendingCancel) return
+    const intent = pendingCancel; const cancelledAt = now()
+    const cancellation = { status: 'CANCELADA', cancellationReason: reason, cancelledAt, cancelledByRole: intent.mode === 'admin' ? 'ADMINISTRADOR' : 'DELEGACIÓN' }
+    if (intent.mode === 'admin') {
+      const session = getAdminSession(); const row = adminRows.find(candidate => candidate.id === intent.rowId)
+      if (!session || !row) { $('cancelError').textContent = 'La sesión expiró o el plan ya no está cargado. Actualizá e intentá nuevamente.'; return }
+      cancellation.cancelledBy = adminEmailFromToken(session.accessToken) || CONFIG.adminEmail || 'Administrador DDT'
+      const target = (row.activities || []).find(item => item.id === intent.itemId)
+      if (!target) { $('cancelError').textContent = 'La capacitación ya no está en el plan. Actualizá la vista.'; return }
+      if (isCancelled(target)) { $('cancelError').textContent = 'Esta capacitación ya está cancelada.'; return }
+      const activities = clone(row.activities); Object.assign(activities.find(item => item.id === intent.itemId), cancellation)
+      const saved = await saveAdminRow(row, { activities }, 'Capacitación cancelada y motivo guardado en Supabase.')
+      if (!saved) return
+    } else {
+      const current = plan()
+      if (!current.remoteId || current.remoteId !== intent.rowId) { $('cancelError').textContent = 'No coincide el plan territorial actual. Recargá la página e intentá nuevamente.'; return }
+      cancellation.cancelledBy = current.registrantName || `Delegación ${current.delegation}`
+      try {
+        const latest = await api(`/rest/v1/${TABLE}?id=eq.${encodeURIComponent(current.remoteId)}&select=*`, {}, '', current.editToken)
+        if (!latest?.length) throw new Error('El plan no se encontró o el acceso de esta delegación no está disponible.')
+        const latestRow = latest[0]; const activities = activitiesFromRemote(latestRow); const target = activities.find(item => item.id === intent.itemId)
+        if (!target) throw new Error('La capacitación ya no está en el plan. Actualizá la página.')
+        if (isCancelled(target)) throw new Error('Esta capacitación ya fue cancelada.')
+        Object.assign(target, cancellation)
+        const saved = await api(`/rest/v1/${TABLE}?id=eq.${encodeURIComponent(current.remoteId)}&updated_at=eq.${encodeURIComponent(latestRow.updated_at)}&select=*`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ activities }) }, '', current.editToken)
+        if (!saved?.length) throw new Error('El plan cambió mientras se confirmaba la cancelación. Actualizá y volvé a intentarlo.')
+        mergePlanFromRemote(current, saved[0]); renderPlan()
+      } catch (error) { $('cancelError').textContent = `No se guardó la cancelación: ${error.message}`; return }
+    }
+    $('activityCancelDialog').close(); pendingCancel = null
+    renderCancelledReport()
+  }
+  function cancellationRows() {
+    return adminRows.flatMap(row => (row.activities || []).filter(isCancelled).map(item => ({ ...item, delegation: row.delegation })))
+  }
+  function filteredCancellationRows() {
+    const month = $('cancelledMonth').value; const delegation = $('cancelledDelegation').value
+    return cancellationRows().filter(item => (!month || String(item.date || '').startsWith(month)) && (!delegation || item.delegation === delegation)).sort((a,b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.delegation || '').localeCompare(String(b.delegation || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')))
+  }
+  function renderCancelledReport() {
+    if (!$('cancelledList')) return
+    const rows = filteredCancellationRows(); const delegations = new Set(rows.map(item => item.delegation))
+    const projected = rows.reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0)
+    $('cancelledSummary').textContent = `${rows.length} cancelaciones · ${delegations.size} delegaciones · ${projected.toLocaleString('es-NI')} participantes proyectados afectados.`
+    const root = $('cancelledList'); root.replaceChildren()
+    if (!rows.length) { root.append(text('div', 'No se registran capacitaciones canceladas para el período seleccionado.', 'cancelled-empty')); return }
+    rows.forEach((item, index) => {
+      const card = document.createElement('article'); card.className = 'cancelled-row'
+      card.append(text('h3', `${index + 1}. ${item.delegation} · ${item.topic || 'Capacitación sin tema'}`))
+      ;[[`Fecha programada: ${item.date || 'Sin fecha'}`, `Municipio: ${item.municipality || '—'}`, `Lugar: ${item.location || '—'}`, `Proyección: ${Number(item.projectedParticipants) || 0}`, `Cancelada: ${formatDateTime(item.cancelledAt)}`, `Responsable: ${item.cancelledBy || item.cancelledByRole || 'No indicado'}`].join(' · '), `Motivo: ${item.cancellationReason || 'No indicado'}`].forEach(value => card.append(text('p', value)))
+      root.append(card)
+    })
+  }
+  function buildAdminEditor(row, card, item = null, index = -1, openButton = null) {
+    const editor = document.createElement('div'); editor.className = 'admin-editor'
+    const draft = item ? clone(item) : { ...blankActivity(), draft: false }
+    const grid = document.createElement('div'); grid.className = 'activity-grid'
+    ADMIN_FIELDS.forEach(([key, title, kind, choices]) => {
+      let input
+      if (kind === 'select') { input = selectControl(choices, draft[key]); if (draft[key] && !choices.includes(draft[key])) input.add(new Option(draft[key], draft[key])) }
+      else if (kind === 'textarea') { input = document.createElement('textarea'); input.value = draft[key] || '' }
+      else { input = inputControl(draft[key], kind); if (key === 'date') { input.min = '2026-11-01'; input.max = '2026-11-30' }; if (kind === 'number') input.min = '0' }
+      input.oninput = () => { draft[key] = kind === 'number' ? Number(input.value) : input.value }
+      grid.append(label(title, input, '', key === 'observations' ? 'full' : ['topic', 'location', 'participatingInstitutions', 'additionalDates'].includes(key) ? 'wide' : ''))
+    })
+    const buttons = document.createElement('div'); buttons.className = 'admin-toolbar'
+    const saveLabel = item ? 'Guardar cambios' : 'Agregar capacitación al plan'
+    buttons.append(adminButton(saveLabel, async () => {
+      const required = ['activityType','topic','date','startTime','endTime','municipality','location','modality','trainingProvider','participatingInstitutions','responsible']
+      if (required.some(key => !String(draft[key] || '').trim()) || !String(draft.date || '').startsWith('2026-11-') || Number(draft.projectedParticipants) <= 0 || (draft.trainingProvider === 'INTUR CENTRAL' && !String(draft.ddtFacilitator || '').trim())) { toast('Completá todos los campos obligatorios; la fecha debe ser de noviembre de 2026.'); return }
+      const activities = clone(row.activities || [])
+      if (item) activities[index] = draft
+      else {
+        draft.id = makeId(); draft.draft = false; draft.status = 'PROGRAMADA'; draft.addedByAdmin = true; draft.addedAt = now()
+        const session = getAdminSession(); draft.addedBy = session ? adminEmailFromToken(session.accessToken) || CONFIG.adminEmail || 'Administrador DDT' : 'Administrador DDT'
+        activities.push(draft)
+      }
+      const saved = await saveAdminRow(row, { activities }, item ? 'Capacitación actualizada en Supabase.' : `Capacitación agregada al plan de ${row.delegation} en Supabase.`)
+      if (saved) renderAdmin(row.id)
+    }, 'button secondary'), adminButton('Cancelar', () => { editor.remove(); if (openButton) openButton.disabled = false }))
+    editor.append(grid, buttons); card.append(editor)
+    if (openButton) openButton.disabled = true
+  }
   function renderAdmin(openId = null) {
     const delegationFilter = $('adminDelegationFilter').value, statusFilter = $('adminStatusFilter').value, query = $('adminSearch').value.trim().toLocaleLowerCase('es')
     const filtered = adminRows.filter(row => (!delegationFilter || row.delegation === delegationFilter) && (!statusFilter || row.status === statusFilter) && (!query || JSON.stringify(row).toLocaleLowerCase('es').includes(query)))
-    const totalActivities = adminRows.reduce((sum, row) => sum + (row.activities?.length || 0), 0)
-    const totalParticipants = adminRows.reduce((sum, row) => sum + (row.activities || []).reduce((subtotal, item) => subtotal + (Number(item.projectedParticipants) || 0), 0), 0)
-    $('adminDelegations').textContent = `${new Set(adminRows.map(row => row.delegation)).size} / 17`; $('adminActivities').textContent = totalActivities; $('adminParticipants').textContent = totalParticipants.toLocaleString('es-NI'); $('adminSubmitted').textContent = adminRows.filter(row => row.status === 'ENVIADO').length
+    const totalActivities = adminRows.reduce((sum, row) => sum + activeActivities(row.activities).length, 0)
+    const totalCancelled = adminRows.reduce((sum, row) => sum + cancelledActivities(row.activities).length, 0)
+    const totalParticipants = adminRows.reduce((sum, row) => sum + activeActivities(row.activities).reduce((subtotal, item) => subtotal + (Number(item.projectedParticipants) || 0), 0), 0)
+    $('adminDelegations').textContent = `${new Set(adminRows.map(row => row.delegation)).size} / 17`; $('adminActivities').textContent = totalActivities; $('adminCancelled').textContent = totalCancelled; $('adminParticipants').textContent = totalParticipants.toLocaleString('es-NI'); $('adminSubmitted').textContent = adminRows.filter(row => row.status === 'ENVIADO').length
     $('adminDownloadComplete').disabled = !adminRows.length
     $('adminDownloadExcelComplete').disabled = !adminRows.some(row => row.status === 'ENVIADO' && (row.activities || []).some(activity => !activity.draft && String(activity.date || '').startsWith('2026-11-')))
     $('adminDownloadCentral').disabled = !adminRows.some(row => row.status === 'ENVIADO' && (row.activities || []).some(activity => !activity.draft))
@@ -603,10 +768,10 @@
     if (!filtered.length) { root.append(text('div', 'No hay registros para los filtros seleccionados.', 'admin-empty')); return }
     filtered.forEach(row => {
       const details = document.createElement('details'); details.className = 'admin-card'; details.dataset.rowId = row.id; details.open = row.id === openId || expandedIds.has(row.id)
-      const summary = document.createElement('summary'); const count = row.activities?.length || 0; const projected = (row.activities || []).reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0)
+      const summary = document.createElement('summary'); const count = activeActivities(row.activities).length; const cancelled = cancelledActivities(row.activities).length; const projected = activeActivities(row.activities).reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0)
       const identity = document.createElement('div'); identity.append(text('strong', row.delegation), text('small', row.region))
       const contact = document.createElement('div'); contact.append(text('strong', row.registrant_name), text('small', row.registrant_role || 'Cargo no indicado'))
-      const totals = document.createElement('div'); totals.append(text('strong', `${count} actividades`), text('small', `${projected} participantes`))
+      const totals = document.createElement('div'); totals.append(text('strong', `${count} vigentes`), text('small', `${projected} participantes${cancelled ? ` · ${cancelled} canceladas` : ''}`))
       const state = text('span', row.status === 'ENVIADO' ? 'Enviado' : 'Borrador', `admin-state${row.status === 'ENVIADO' ? ' sent' : ''}`)
       summary.append(identity, contact, totals, state)
       const body = document.createElement('div'); body.className = 'admin-detail'
@@ -615,7 +780,7 @@
       body.append(contactGrid)
       const statusRow = document.createElement('div'); statusRow.className = 'admin-toolbar'
       const select = selectControl(['BORRADOR', 'ENVIADO'], row.status)
-      statusRow.append(label('Cambiar estado del plan', select), adminButton('Guardar estado', async () => { if (select.value !== row.status && confirm(`¿Cambiar el estado de ${row.delegation} a ${select.value}?`)) await saveAdminRow(row, { status: select.value }, 'Estado actualizado.'); else if (select.value === row.status) toast('El estado no cambió.') }, 'button secondary'))
+      statusRow.append(label('Cambiar estado del plan', select), adminButton('Guardar estado', async () => { if (select.value !== row.status && confirm(`¿Cambiar el estado de ${row.delegation} a ${select.value}?`)) await saveAdminRow(row, { status: select.value }, 'Estado actualizado.'); else if (select.value === row.status) toast('El estado no cambió.') }, 'button secondary'), adminButton('＋ Agregar capacitación', () => buildAdminEditor(row, body), 'button secondary'))
       body.append(statusRow)
       if (row.status === 'ENVIADO') {
         const downloads = document.createElement('div'); downloads.className = 'admin-downloads'
@@ -624,38 +789,19 @@
         body.append(downloads)
       }
       ;(row.activities || []).forEach((item, index) => {
-        const card = document.createElement('details'); card.className = 'admin-activity-card'
+        const cancelledItem = isCancelled(item)
+        const card = document.createElement('details'); card.className = `admin-activity-card${cancelledItem ? ' is-cancelled' : ''}`
         const heading = document.createElement('summary'); heading.className = 'admin-activity-heading'
-        heading.append(text('strong', `${index + 1}. ${item.topic || 'Capacitación sin tema'}`))
+        const titleWrap = document.createElement('span'); titleWrap.className = 'activity-status'; titleWrap.append(text('strong', `${index + 1}. ${item.topic || 'Capacitación sin tema'}`)); if (cancelledItem) titleWrap.append(text('span', 'CANCELADA', 'cancelled-badge')); heading.append(titleWrap)
         const fieldGrid = document.createElement('div'); fieldGrid.className = 'admin-all-fields'
         ADMIN_FIELDS.forEach(([key, title]) => fieldGrid.append(adminField(title, item[key])))
+        if (cancelledItem) {
+          fieldGrid.append(adminField('Fecha de cancelación', formatDateTime(item.cancelledAt)), adminField('Cancelada por', item.cancelledBy || item.cancelledByRole))
+          const reason = text('div', `Motivo: ${item.cancellationReason || 'No indicado'}`, 'cancelled-reason'); fieldGrid.append(reason)
+        }
         const actions = document.createElement('div'); actions.className = 'admin-toolbar'
-        const editButton = adminButton('Editar capacitación', () => {
-          const editor = document.createElement('div'); editor.className = 'admin-editor'
-          const draft = clone(item); const grid = document.createElement('div'); grid.className = 'activity-grid'
-          ADMIN_FIELDS.forEach(([key, title, kind, choices]) => {
-            let input
-            if (kind === 'select') { input = selectControl(choices, draft[key]); if (draft[key] && !choices.includes(draft[key])) input.add(new Option(draft[key], draft[key])) }
-            else if (kind === 'textarea') { input = document.createElement('textarea'); input.value = draft[key] || '' }
-            else { input = inputControl(draft[key], kind); if (key === 'date') { input.min = '2026-11-01'; input.max = '2026-11-30' }; if (kind === 'number') input.min = '0' }
-            input.oninput = () => { draft[key] = kind === 'number' ? Number(input.value) : input.value }
-            grid.append(label(title, input, '', key === 'observations' ? 'full' : ['topic', 'location', 'participatingInstitutions', 'additionalDates'].includes(key) ? 'wide' : ''))
-          })
-          const buttons = document.createElement('div'); buttons.className = 'admin-toolbar'
-          buttons.append(adminButton('Guardar cambios', async () => {
-            const required = ['topic','date','startTime','endTime','municipality','location','trainingProvider','participatingInstitutions','responsible']
-            if (required.some(key => !String(draft[key] || '').trim()) || !String(draft.date || '').startsWith('2026-11-') || Number(draft.projectedParticipants) <= 0 || (draft.trainingProvider === 'INTUR CENTRAL' && !String(draft.ddtFacilitator || '').trim())) { toast('Completá los campos obligatorios antes de guardar.'); return }
-            const activities = clone(row.activities); activities[index] = draft
-            await saveAdminRow(row, { activities }, 'Capacitación corregida en Supabase.')
-          }, 'button secondary'), adminButton('Cancelar', () => { editor.remove(); editButton.disabled = false }))
-          editor.append(grid, buttons); card.append(editor); editButton.disabled = true
-        }, 'button secondary')
-        const deleteButton = adminButton('Eliminar capacitación', async () => {
-          if (!confirm(`¿Eliminar definitivamente la capacitación “${item.topic || 'Sin tema'}” de ${row.delegation}? Esta acción afecta el registro en línea.`)) return
-          const activities = clone(row.activities); activities.splice(index, 1)
-          await saveAdminRow(row, { activities }, 'Capacitación eliminada de Supabase.')
-        }, 'button admin-danger')
-        actions.append(editButton, deleteButton); card.append(heading, fieldGrid, actions); body.append(card)
+        if (!cancelledItem) actions.append(adminButton('Editar capacitación', event => buildAdminEditor(row, card, item, index, event.currentTarget), 'button secondary'), adminButton('Cancelar capacitación', () => openCancellation(row, item, 'admin'), 'button admin-danger'))
+        card.append(heading, fieldGrid, actions); body.append(card)
       })
       details.append(summary, body); root.append(details)
     })
@@ -676,9 +822,21 @@
     $('adminDownloadComplete').onclick = event => exportPlan('wordComplete', adminRows, event.currentTarget)
     $('adminDownloadExcelComplete').onclick = event => exportPlan('excelComplete', adminRows, event.currentTarget)
     $('adminDownloadCentral').onclick = event => exportForSatCentral(event.currentTarget)
+    $('adminCancelledOpen').onclick = () => { renderCancelledReport(); $('cancelledDialog').showModal() }
+    $('cancelledClose').onclick = () => $('cancelledDialog').close()
+    $('cancelledMonth').onchange = renderCancelledReport; $('cancelledDelegation').onchange = renderCancelledReport
+    setOptions($('cancelledDelegation'), ['Todas las delegaciones', ...DELEGATIONS], 'Todas las delegaciones'); $('cancelledDelegation').options[0].value = ''
+    $('cancelledDownload').onclick = async event => {
+      const button = event.currentTarget; const originalLabel = button.textContent
+      try { button.disabled = true; button.textContent = 'Generando informe…'; await window.SATPlanExports.cancellationReport({ rows: filteredCancellationRows(), month: $('cancelledMonth').value }); toast('Informe de cancelaciones descargado en Word.') }
+      catch (error) { toast(`No se pudo generar el informe: ${error.message}`) }
+      finally { button.disabled = false; button.textContent = originalLabel }
+    }
+    $('confirmCancelActivity').onclick = confirmActivityCancellation
+    $('cancelReason').oninput = () => { $('cancelError').textContent = '' }
     setOptions($('adminDelegationFilter'), ['Todas', ...DELEGATIONS], 'Todas'); $('adminDelegationFilter').options[0].value = ''
     $('adminDelegationFilter').onchange = renderAdmin; $('adminStatusFilter').onchange = renderAdmin; $('adminSearch').oninput = renderAdmin
-    $('adminRefresh').onclick = async () => { const session = getAdminSession(); if (!session) return; await showAdmin(session.accessToken); toast('Informe actualizado.') }
+    $('adminRefresh').onclick = async () => { const session = getAdminSession(); if (!session) return; await showAdmin(session.accessToken); renderCancelledReport(); toast('Informe actualizado.') }
   }
-  connectionBanner(); setupSelectors(); bindEvents(); ensureSelectedPlan(); renderPlan()
+  connectionBanner(); setupSelectors(); bindEvents(); ensureSelectedPlan(); renderPlan(); refreshSelectedPlanFromRemote().catch(() => {})
 })()

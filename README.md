@@ -16,6 +16,14 @@ Además de la información del ejemplo recibido, se incorporaron los datos neces
 
 La proyección es únicamente planificación: no se presenta como asistencia real ni como actividad ejecutada.
 
+## Cancelaciones y consolidado
+
+Una capacitación ya registrada puede cancelarse desde el plan territorial o desde **Acceso Admin**. El sistema exige un motivo y conserva la capacitación original junto con el estado `CANCELADA`, fecha y persona que registró la cancelación en el mismo arreglo JSONB del plan. No elimina la fila ni la actividad, y el historial administrativo permite filtrar y descargar un informe Word.
+
+Las capacitaciones canceladas (y los borradores de actividad) no se incluyen en los conteos vigentes ni en las exportaciones oficiales Word/Excel. El Administrador también puede agregar una capacitación al plan existente de una delegación sin reemplazar las demás actividades. Las escrituras usan comparación de `updated_at`; si otra persona actualiza el plan al mismo tiempo, la operación se rechaza y se solicita actualizar antes de reintentar.
+
+No se requiere cambio de esquema ni ejecutar una migración en Supabase: estos metadatos viven dentro del campo `activities` JSONB y las reglas RLS existentes siguen limitando el acceso a cada fila.
+
 ## Guardado en línea configurado
 
 GitHub Pages aloja páginas estáticas: no puede guardar los planes de varias delegaciones por sí solo. Esta carpeta usa Supabase como almacenamiento central, con políticas de acceso por fila (RLS).
