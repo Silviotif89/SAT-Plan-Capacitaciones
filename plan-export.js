@@ -40,6 +40,101 @@
     const all = [...locals, ...central, end]; const total = all.reduce((sum, value) => sum + value.length, 0); const output = new Uint8Array(total); let cursor = 0; all.forEach(value => { output.set(value, cursor); cursor += value.length }); return output
   }
   const download = (bytes, type, name) => { const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([bytes], { type })); link.download = name; document.body.append(link); link.click(); setTimeout(() => { URL.revokeObjectURL(link.href); link.remove() }, 1000) }
+  const monthlyPlanImage = async plan => {
+    const rows = activities(plan)
+    const width = 1840, margin = 54, tableWidth = width - margin * 2, headerHeight = 72
+    const columns = [
+      { title: 'FECHA', width: 138, value: item => item.date ? dateLabel(item.date).toLocaleUpperCase('es-NI') : 'PENDIENTE' },
+      { title: 'ACTIVIDAD', width: 350, value: item => item.topic || 'Capacitación sin tema', secondary: item => [item.activityType, item.additionalDates ? `Fechas adicionales: ${item.additionalDates}` : '', item.observations].filter(Boolean).join(' · ') },
+      { title: 'HORARIO', width: 158, value: item => scheduleLabel(item) || 'Por confirmar' },
+      { title: 'LUGAR', width: 300, value: item => item.location || 'Por confirmar' },
+      { title: 'MUNICIPIO', width: 180, value: item => item.municipality || 'Por confirmar' },
+      { title: 'PROYECCIÓN', width: 145, value: item => Number(item.projectedParticipants) > 0 ? `${Number(item.projectedParticipants).toLocaleString('es-NI')} personas` : 'Pendiente' },
+      { title: 'INSTITUCIÓN / RESPONSABLE', width: 461, value: item => {
+        const provider = String(item.trainingProvider || '').trim().toUpperCase() === 'INTUR CENTRAL' ? 'INTUR CENTRAL · Facilitación DDT' : (item.trainingProvider || '')
+        return [provider, item.ddtFacilitator || item.responsible, item.participatingInstitutions ? `Participan: ${item.participatingInstitutions}` : ''].filter(Boolean).join(' · ') || 'Por confirmar'
+      } },
+    ]
+    const totalParticipants = rows.reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0)
+    const ctxProbe = document.createElement('canvas').getContext('2d')
+    const wrap = (value, maxWidth, font) => {
+      const text = String(value || '—').replace(/\s+/g, ' ').trim() || '—'
+      ctxProbe.font = font
+      const lines = []; let line = ''
+      text.split(' ').forEach(word => {
+        const candidate = line ? `${line} ${word}` : word
+        if (line && ctxProbe.measureText(candidate).width > maxWidth) { lines.push(line); line = word }
+        else line = candidate
+      })
+      if (line) lines.push(line)
+      return lines
+    }
+    const bodyRows = rows.map(item => {
+      const cells = columns.map((column, index) => ({
+        lines: wrap(column.value(item), column.width - 28, index === 1 ? '700 25px Arial' : '600 22px Arial'),
+        secondary: index === 1 && column.secondary ? wrap(column.secondary(item), column.width - 28, '400 17px Arial') : [],
+      }))
+      const lineCount = Math.max(...cells.map(cell => cell.lines.length + (cell.secondary.length ? cell.secondary.length + 1 : 0)), 1)
+      return { cells, height: Math.max(100, 30 + lineCount * 29) }
+    })
+    const top = 300, tableTop = top, bodyTop = tableTop + headerHeight
+    const height = bodyTop + (bodyRows.length ? bodyRows.reduce((sum, row) => sum + row.height, 0) : 112) + 88
+    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#edf3f8'; ctx.fillRect(0, 0, width, height)
+    ctx.fillStyle = '#d60978'; ctx.fillRect(0, 0, width * .25, 10); ctx.fillStyle = '#06a6c9'; ctx.fillRect(width * .25, 0, width * .25, 10); ctx.fillStyle = '#16a05d'; ctx.fillRect(width * .5, 0, width * .25, 10); ctx.fillStyle = '#f4c400'; ctx.fillRect(width * .75, 0, width * .25, 10)
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 10, width, top - 10)
+    ctx.fillStyle = '#183b76'; ctx.font = '800 43px Arial'; ctx.fillText('PLAN MENSUAL DE CAPACITACIONES', 410, 91)
+    ctx.fillStyle = '#63728a'; ctx.font = '600 30px Arial'; ctx.fillText(MONTH[0] + MONTH.slice(1).toLocaleLowerCase('es-NI'), 410, 139)
+    ctx.fillStyle = '#d60978'; ctx.font = '700 23px Arial'; ctx.fillText(`${delegationTitle(plan.delegation)} ${String(plan.delegation || '').toLocaleUpperCase('es-NI')}`, 410, 183)
+    ctx.fillStyle = '#74849b'; ctx.font = '700 16px Arial'; ctx.fillText('GENERADO DESDE SAT · INTUR', width - 360, 222)
+    const boxY = 52, boxW = 275, boxH = 88
+    ;[[width - 640, 'ACTIVIDADES', rows.length.toLocaleString('es-NI'), '#e5f5ed', '#16834a'], [width - 345, 'PROYECCIÓN TOTAL', `${totalParticipants.toLocaleString('es-NI')} protagonistas`, '#e6f5fa', '#0785ad']].forEach(([x, label, value, background, color]) => {
+      ctx.fillStyle = background; ctx.beginPath(); ctx.roundRect(x, boxY, boxW, boxH, 18); ctx.fill()
+      ctx.fillStyle = color; ctx.font = '800 15px Arial'; ctx.fillText(label, x + 20, boxY + 30)
+      ctx.fillStyle = '#183b76'; ctx.font = '700 23px Arial'; ctx.fillText(value, x + 20, boxY + 64, boxW - 36)
+    })
+    try {
+      const response = await fetch('assets/intur-header.jpg')
+      if (response.ok) {
+        const logo = new Image(), logoUrl = URL.createObjectURL(await response.blob())
+        await new Promise((resolve, reject) => { logo.onload = resolve; logo.onerror = reject; logo.src = logoUrl })
+        const scale = Math.min(310 / logo.width, 116 / logo.height)
+        ctx.drawImage(logo, 55, 65, logo.width * scale, logo.height * scale); URL.revokeObjectURL(logoUrl)
+      }
+    } catch (_) { ctx.fillStyle = '#d60978'; ctx.font = '800 30px Arial'; ctx.fillText('INTUR', 70, 116) }
+    ctx.fillStyle = '#1b3d76'; ctx.beginPath(); ctx.roundRect(margin, tableTop, tableWidth, headerHeight, [18, 18, 0, 0]); ctx.fill()
+    let x = margin
+    columns.forEach(column => { ctx.fillStyle = '#fff'; ctx.font = '800 16px Arial'; ctx.fillText(column.title, x + 15, tableTop + 44, column.width - 24); x += column.width })
+    const palette = [
+      { stripe: '#f0bf00', background: '#fffdf1' }, { stripe: '#d60978', background: '#fff3f8' },
+      { stripe: '#06a6c9', background: '#eef9fc' }, { stripe: '#8052b8', background: '#f7f3fb' },
+    ]
+    let y = bodyTop
+    if (!bodyRows.length) {
+      ctx.fillStyle = '#fff'; ctx.fillRect(margin, y, tableWidth, 112); ctx.fillStyle = '#526780'; ctx.font = '600 24px Arial'; ctx.fillText('No se registraron capacitaciones para este plan.', margin + 26, y + 64)
+    }
+    bodyRows.forEach((row, rowIndex) => {
+      const colors = palette[Math.floor((Number(String(rows[rowIndex].date || '').slice(-2)) - 1) / 7) % palette.length] || palette[rowIndex % palette.length]
+      ctx.fillStyle = colors.background; ctx.fillRect(margin, y, tableWidth, row.height)
+      ctx.fillStyle = colors.stripe; ctx.fillRect(margin, y, 8, row.height)
+      ctx.strokeStyle = '#dce5ef'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(margin, y + row.height); ctx.lineTo(margin + tableWidth, y + row.height); ctx.stroke()
+      let cellX = margin
+      row.cells.forEach((cell, cellIndex) => {
+        const column = columns[cellIndex], isTopic = cellIndex === 1
+        ctx.fillStyle = isTopic ? '#183b76' : '#465a73'; ctx.font = isTopic ? '700 25px Arial' : '600 22px Arial'
+        let textY = y + 32
+        cell.lines.forEach(line => { ctx.fillText(line, cellX + 18, textY, column.width - 32); textY += 29 })
+        if (cell.secondary.length) {
+          textY += 2; ctx.fillStyle = '#718198'; ctx.font = '400 17px Arial'
+          cell.secondary.forEach(line => { ctx.fillText(line, cellX + 18, textY, column.width - 32); textY += 22 })
+        }
+        cellX += column.width
+      })
+      y += row.height
+    })
+    ctx.fillStyle = '#64758e'; ctx.font = '600 16px Arial'; ctx.fillText('Acompañamiento Técnico · INTUR Nicaragua', margin + 4, height - 30)
+    return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('El navegador no pudo crear la imagen PNG.')), 'image/png'))
+  }
   const field = (label, value) => value === undefined || value === null || String(value).trim() === '' ? '' : `<w:p><w:pPr><w:spacing w:after="80"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>${xml(label)}: </w:t></w:r><w:r><w:t xml:space="preserve">${xml(value)}</w:t></w:r></w:p>`
   const docx = async plan => {
     let logoBytes = null
@@ -401,5 +496,5 @@
     const activities = allActivities.map(item => ({ ...item, globalNumber: numbers.get(item.id) })).sort((a, b) => String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' }) || String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')))
     return { complete: true, delegation: 'COMPLETO', activities }
   }
-  window.SATPlanExports={async word(plan){download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan.delegation))},async wordComplete(rows){const plan=completePlan(rows);download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx','COMPLETO'))},async ddtWord(activities){await ddtWord(activities)},async cancellationReport(report){return cancellationExportModule(report)},async excel(plan){download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan.delegation))},async excelComplete(rows){const plan=completePlan(rows);download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx','COMPLETO'))}}
+  window.SATPlanExports={async word(plan){download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan.delegation))},async wordComplete(rows){const plan=completePlan(rows);download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx','COMPLETO'))},async ddtWord(activities){await ddtWord(activities)},async cancellationReport(report){return cancellationExportModule(report)},async excel(plan){download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan.delegation))},async excelComplete(rows){const plan=completePlan(rows);download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx','COMPLETO'))},async image(plan){download(await monthlyPlanImage(plan),'image/png',fileName('png',plan.delegation))}}
 })()

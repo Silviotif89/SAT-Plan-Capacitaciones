@@ -509,9 +509,9 @@
     if (!exporter) { toast('No se pudo preparar la descarga. Actualizá la página e intentá nuevamente.'); return }
     const label = button?.textContent
     try {
-      if (button) { button.disabled = true; button.textContent = 'Generando documento…' }
+      if (button) { button.disabled = true; button.textContent = format === 'image' ? 'Generando imagen…' : 'Generando documento…' }
       const exportSource = format === 'excel' ? await loadPlanForExcel(sourcePlan) : format === 'excelComplete' ? await loadPlansForExcel() : sourcePlan
-      await exporter(exportSource); toast(`Plan mensual en ${format === 'word' ? 'Word' : 'Excel'} generado.`)
+      await exporter(exportSource); toast(`Plan mensual en ${format === 'word' ? 'Word' : format === 'image' ? 'imagen PNG' : 'Excel'} generado.`)
     }
     catch (error) { toast(`No se pudo generar el documento: ${error.message}`) }
     finally { if (button) setTimeout(() => { button.disabled = false; button.textContent = label }, 350) }
@@ -785,7 +785,7 @@
       if (row.status === 'ENVIADO') {
         const downloads = document.createElement('div'); downloads.className = 'admin-downloads'
         downloads.append(text('p', `Descargas disponibles para el plan enviado de ${row.delegation}.`))
-        downloads.append(adminButton('▣ Descargar plan en Word', () => exportPlan('word', { delegation: row.delegation, activities: row.activities || [] }, null), 'button word'), adminButton('▦ Descargar plan en Excel', () => exportPlan('excel', row, null), 'button excel'))
+        downloads.append(adminButton('▣ Descargar plan en Word', () => exportPlan('word', { delegation: row.delegation, activities: row.activities || [] }, null), 'button word'), adminButton('▦ Descargar plan en Excel', () => exportPlan('excel', row, null), 'button excel'), adminButton('▧ Generar imagen PNG', () => exportPlan('image', { delegation: row.delegation, activities: row.activities || [] }, null), 'button image'))
         body.append(downloads)
       }
       ;(row.activities || []).forEach((item, index) => {
