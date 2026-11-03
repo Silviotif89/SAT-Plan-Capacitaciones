@@ -544,7 +544,19 @@
   function getAdminSession() { try { const value = JSON.parse(sessionStorage.getItem(ADMIN_SESSION_KEY) || 'null'); return value && value.expiresAt > Date.now() ? value : null } catch (_) { return null } }
   async function showAdmin(token) {
     $('delegateView').hidden = true; $('adminView').hidden = false
-    try { adminRows = await api(`/rest/v1/${TABLE}?select=*&order=updated_at.desc`, {}, token); adminRows.forEach(row => (row.activities || []).forEach(normalizeActivityProvider)); renderAdmin(); renderCancelledReport() }
+    const selector = $('adminPeriod')
+    const period = selector.value
+    const legacy = period === '2026-11'
+    $('adminPeriodHeading').textContent = 'Seguimiento del Plan · ' + period
+    $('adminPeriodNotice').hidden = legacy
+    for (const id of ['assignDdtStaff', 'adminCancelledOpen', 'adminPlanDdt']) $(id).disabled = !legacy
+    if (!legacy) {
+      adminRows = []
+      renderAdmin()
+      renderCancelledReport()
+      return
+    }
+    try { const rows = await api(`/rest/v1/${TABLE}?select=*&order=updated_at.desc`, {}, token); if (selector.value !== period) return; adminRows = rows; adminRows.forEach(row => (row.activities || []).forEach(normalizeActivityProvider)); renderAdmin(); renderCancelledReport() }
     catch (error) { toast(`No se pudo abrir el informe: ${error.message}`); adminRows = []; renderAdmin() }
   }
   function text(tag, value, className = '') { const node = document.createElement(tag); node.textContent = value; if (className) node.className = className; return node }
@@ -819,6 +831,12 @@
     $('ddtBack').onclick = () => { $('planDdtView').hidden = true; $('adminDashboard').hidden = false }
     $('downloadDdtWord').onclick = event => downloadDdtPlan(event.currentTarget)
     $('adminLogout').onclick = () => { sessionStorage.removeItem(ADMIN_SESSION_KEY); $('adminView').hidden = true; $('delegateView').hidden = false; toast('Sesión administrativa cerrada.') }
+    $('adminPeriod').onchange = () => {
+      const selector = $('adminPeriod')
+      if (!selector.checkValidity()) { selector.value = '2026-11' }
+      const session = getAdminSession()
+      if (session) void showAdmin(session.accessToken)
+    }
     $('adminDownloadComplete').onclick = event => exportPlan('wordComplete', adminRows, event.currentTarget)
     $('adminDownloadExcelComplete').onclick = event => exportPlan('excelComplete', adminRows, event.currentTarget)
     $('adminDownloadCentral').onclick = event => exportForSatCentral(event.currentTarget)
