@@ -184,6 +184,7 @@ begin
  if not found then raise exception 'Cuenta sin configurar'; end if;
 end;
 $sat$;
+revoke all on function public.sat_service_account(text),public.sat_service_link(text,uuid),public.sat_service_unlink(text,uuid),public.sat_service_prepare_reset(text) from authenticated;
 revoke all on function public.sat_my_account(),public.sat_my_november_plan(),public.sat_complete_password_change(),
  public.sat_admin_accounts(),public.sat_admin_enable_account(text,boolean),
  public.sat_service_account(text),public.sat_service_link(text,uuid),public.sat_service_unlink(text,uuid),
