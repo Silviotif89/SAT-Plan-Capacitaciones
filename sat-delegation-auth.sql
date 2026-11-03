@@ -35,12 +35,12 @@ $sat$;
 revoke all on function public.sat_current_delegation() from public,anon;
 grant execute on function public.sat_current_delegation() to authenticated;
 
-create or replace function public.sat_plan_edit_enabled(plan_period date, plan_delegation text)
+create or replace function public.sat_plan_edit_enabled(p date, d text)
 returns boolean language sql stable security definer set search_path=''
 as $sat$
  select coalesce((select enabled from public.sat_plan_edit_permissions
- where period=plan_period and delegation=plan_delegation
- and plan_delegation=public.sat_current_delegation()),false)
+ where period=p and delegation=d
+ and d=public.sat_current_delegation()),false)
 $sat$;
 revoke all on function public.sat_plan_edit_enabled(date,text) from public,anon;
 grant execute on function public.sat_plan_edit_enabled(date,text) to authenticated;

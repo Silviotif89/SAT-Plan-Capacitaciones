@@ -99,6 +99,7 @@ async function verifyNewAccount(
   if (finalPassword.error) {
     throw new Error("No se pudo dejar la contraseña temporal de entrega.");
   }
+  await verifyResetAccount(url, publishableKey, delegation, email, temporaryPassword, true);
   return temporaryPassword;
 }
 
