@@ -74,7 +74,18 @@
 
     <section id="adminView" class="admin-view" hidden>
       <div id="adminDashboard">
-      <div class="admin-bar"><div><span class="eyebrow dark">Consola administrativa</span><h2 id="adminPeriodHeading">Seguimiento del Plan de Noviembre</h2><label for="adminPeriod">Mes y año</label> <input id="adminPeriod" type="month" min="0001-01" max="9999-12" value="2026-11" required><p id="adminPeriodNotice" role="status" hidden>Este período aún no está habilitado para registro.</p><p>Vista central de delegaciones, responsables y capacitaciones registradas.</p></div><div class="admin-action-stack"><div class="admin-main-actions"><button class="button word" id="adminDownloadComplete" type="button" disabled>▣ Descargar plan completo noviembre</button><button class="button excel" id="adminDownloadExcelComplete" type="button" disabled>▦ Descargar Excel completo noviembre</button><button class="button excel" id="adminDownloadCentral" type="button" disabled>Exportar para SAT Central</button><button class="button secondary" id="assignDdtStaff" type="button">👥 Asignar personal DDT</button><button class="button cancelled-action" id="adminCancelledOpen" type="button">⛔ Capacitaciones canceladas</button></div><div class="admin-session-actions"><button class="button plan-ddt" id="adminPlanDdt" type="button">▤ Plan DDT</button><button class="button ghost" id="adminLogout" type="button">Cerrar sesión</button></div></div></div>
+      <div class="admin-bar"><div><span class="eyebrow dark">Consola administrativa</span><h2 id="adminPeriodHeading">Seguimiento del Plan de Noviembre</h2><div class="period-picker" id="adminPeriodPicker">
+  <span class="period-label">MES</span>
+  <div class="period-controls">
+    <button type="button" id="periodPrev" aria-label="Mes anterior">‹</button>
+    <button type="button" id="periodToggle" aria-expanded="false" aria-controls="periodPanel"><span aria-hidden="true" class="period-icon">▦</span><strong id="periodMonth"></strong><span id="periodYear"></span></button>
+    <button type="button" id="periodNext" aria-label="Mes siguiente">›</button>
+  </div>
+  <div id="periodPanel" class="period-panel" hidden>
+    <div class="period-controls"><button type="button" id="periodYearPrev" aria-label="Año anterior">‹</button><strong id="periodBrowseYear" aria-live="polite"></strong><button type="button" id="periodYearNext" aria-label="Año siguiente">›</button></div>
+    <div id="periodMonths" class="period-months"></div>
+  </div>
+</div><p id="adminPeriodNotice" role="status" hidden>Este período aún no está habilitado para registro.</p><p>Vista central de delegaciones, responsables y capacitaciones registradas.</p></div><div class="admin-action-stack"><div class="admin-main-actions"><button class="button word" id="adminDownloadComplete" type="button" disabled>▣ Descargar plan completo noviembre</button><button class="button excel" id="adminDownloadExcelComplete" type="button" disabled>▦ Descargar Excel completo noviembre</button><button class="button excel" id="adminDownloadCentral" type="button" disabled>Exportar para SAT Central</button><button class="button secondary" id="assignDdtStaff" type="button">👥 Asignar personal DDT</button><button class="button cancelled-action" id="adminCancelledOpen" type="button">⛔ Capacitaciones canceladas</button></div><div class="admin-session-actions"><button class="button plan-ddt" id="adminPlanDdt" type="button">▤ Plan DDT</button><button class="button ghost" id="adminLogout" type="button">Cerrar sesión</button></div></div></div>
       <section class="metrics admin-metrics">
         <article><span>🗺️</span><div><small>Delegaciones con registro</small><strong id="adminDelegations">0 / 17</strong></div></article>
         <article><span>📚</span><div><small>Capacitaciones</small><strong id="adminActivities">0</strong></div></article>

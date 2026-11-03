@@ -166,3 +166,18 @@ input:focus,select:focus,textarea:focus{border-color:#1683d8;box-shadow:0 0 0 3p
 @media(max-width:620px){.cancelled-filters{grid-template-columns:1fr}.cancelled-dialog{padding:16px}.dialog-actions{display:grid;grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .cancelled-table-reason{display:block;margin-top:5px;color:#9b2537;font-size:.72rem;line-height:1.35}
 .activities-table tr.is-cancelled{background:#fff7f7;color:#6b3a41}.activities-table tr.is-cancelled td{border-color:#f0cfd2}.table-action.cancel{color:#a21e2b;border-color:#f0c4c8;background:#fff0f1;font-size:1.05rem;line-height:1}
+
+.period-picker { position: relative; width: min(100%, 22rem); margin: .55rem 0; }
+.period-label { display: block; color: #526685; font-size: .75rem; font-weight: 800; margin-bottom: .3rem; }
+.period-controls { display: flex; align-items: center; justify-content: space-between; gap: .45rem; }
+.period-picker button { font: inherit; font-weight: 750; cursor: pointer; color: #173569; border: 1px solid #cedbef; border-radius: .65rem; background: #f5f8fb; min-height: 2.55rem; padding: .4rem .6rem; }
+.period-controls > button { min-width: 2.55rem; }
+.period-picker button:hover { background: #fce9f4; border-color: #d40078; }
+.period-picker button:disabled { opacity: .45; cursor: default; }
+#periodToggle { flex: 1; display: flex; align-items: center; gap: .55rem; background: #fff; }
+.period-icon { color: #d40078; font-size: 1.25rem; }
+#periodYear { margin-left: auto; color: #526685; }
+.period-panel { position: absolute; inset: calc(100% + .4rem) 0 auto; z-index: 10; background: #fff; border: 1px solid #cedbef; border-radius: .85rem; padding: .7rem; box-shadow: 0 12px 28px #142f5429; }
+.period-months { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .3rem; margin-top: .55rem; }
+.period-months button { font-size: clamp(.7rem, 1.2vw, .875rem); padding-inline: .15rem; }
+.period-months button[aria-pressed="true"] { color: white; background: #d40078; border-color: #d40078; }

@@ -29,6 +29,8 @@
   const blankPlan = delegation => ({ remoteId: '', remoteUpdatedAt: '', editToken: makeId(), region: regionFor(delegation), delegation, registrantName: '', registrantRole: '', registrantEmail: '', registrantPhone: '', status: 'BORRADOR', activities: [], createdAt: now(), updatedAt: now() })
 
   let store = loadStore()
+  const periodMonths = 'Enero Febrero Marzo Abril Mayo Junio Julio Agosto Septiembre Octubre Noviembre Diciembre'.split(' ')
+  let adminPeriod = '2026-11'
   let adminRows = []
   let ddtActivities = []
   let savingPlan = false
@@ -542,12 +544,59 @@
     } catch (_) { $('adminError').textContent = 'Usuario o contraseña incorrectos.' }
   }
   function getAdminSession() { try { const value = JSON.parse(sessionStorage.getItem(ADMIN_SESSION_KEY) || 'null'); return value && value.expiresAt > Date.now() ? value : null } catch (_) { return null } }
+  function setupAdminPeriodPicker() {
+    const picker = $('adminPeriodPicker'), toggle = $('periodToggle'), panel = $('periodPanel')
+    let browseYear = 2026
+    const selected = () => adminPeriod.split('-').map(Number)
+    const render = () => {
+      const [year, month] = selected()
+      $('periodMonth').textContent = periodMonths[month - 1]
+      $('periodYear').textContent = year
+      $('periodBrowseYear').textContent = browseYear
+      $('periodYearPrev').disabled = browseYear <= 1
+      $('periodYearNext').disabled = browseYear >= 9999
+      $('periodPrev').disabled = year === 1 && month === 1
+      $('periodNext').disabled = year === 9999 && month === 12
+      $('periodMonths').replaceChildren(...periodMonths.map((name, index) => {
+        const button = adminButton(name, () => choose(browseYear, index + 1), '')
+        button.setAttribute('aria-pressed', String(browseYear === year && index + 1 === month))
+        return button
+      }))
+    }
+    const close = () => { panel.hidden = true; toggle.setAttribute('aria-expanded', 'false') }
+    function choose(year, month) {
+      adminPeriod = String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0')
+      browseYear = year
+      render()
+      if (!panel.hidden) { close(); toggle.focus() }
+      const session = getAdminSession()
+      if (session) void showAdmin(session.accessToken)
+    }
+    const step = offset => {
+      const [year, month] = selected()
+      const index = year * 12 + month - 1 + offset
+      choose(Math.floor(index / 12), index % 12 + 1)
+    }
+    $('periodPrev').onclick = () => step(-1)
+    $('periodNext').onclick = () => step(1)
+    $('periodYearPrev').onclick = () => { browseYear--; render() }
+    $('periodYearNext').onclick = () => { browseYear++; render() }
+    toggle.onclick = () => {
+      if (!panel.hidden) { close(); return }
+      browseYear = selected()[0]; render()
+      panel.hidden = false; toggle.setAttribute('aria-expanded', 'true')
+    }
+    picker.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !panel.hidden) { close(); toggle.focus() }
+    })
+    document.addEventListener('click', event => { if (!picker.contains(event.target)) close() })
+    render()
+  }
   async function showAdmin(token) {
     $('delegateView').hidden = true; $('adminView').hidden = false
-    const selector = $('adminPeriod')
-    const period = selector.value
+    const period = adminPeriod
     const legacy = period === '2026-11'
-    $('adminPeriodHeading').textContent = 'Seguimiento del Plan · ' + period
+    $('adminPeriodHeading').textContent = 'Seguimiento del Plan de ' + $('periodMonth').textContent + ' ' + $('periodYear').textContent
     $('adminPeriodNotice').hidden = legacy
     for (const id of ['assignDdtStaff', 'adminCancelledOpen', 'adminPlanDdt']) $(id).disabled = !legacy
     if (!legacy) {
@@ -556,7 +605,7 @@
       renderCancelledReport()
       return
     }
-    try { const rows = await api(`/rest/v1/${TABLE}?select=*&order=updated_at.desc`, {}, token); if (selector.value !== period) return; adminRows = rows; adminRows.forEach(row => (row.activities || []).forEach(normalizeActivityProvider)); renderAdmin(); renderCancelledReport() }
+    try { const rows = await api(`/rest/v1/${TABLE}?select=*&order=updated_at.desc`, {}, token); if (adminPeriod !== period) return; adminRows = rows; adminRows.forEach(row => (row.activities || []).forEach(normalizeActivityProvider)); renderAdmin(); renderCancelledReport() }
     catch (error) { toast(`No se pudo abrir el informe: ${error.message}`); adminRows = []; renderAdmin() }
   }
   function text(tag, value, className = '') { const node = document.createElement(tag); node.textContent = value; if (className) node.className = className; return node }
@@ -831,12 +880,7 @@
     $('ddtBack').onclick = () => { $('planDdtView').hidden = true; $('adminDashboard').hidden = false }
     $('downloadDdtWord').onclick = event => downloadDdtPlan(event.currentTarget)
     $('adminLogout').onclick = () => { sessionStorage.removeItem(ADMIN_SESSION_KEY); $('adminView').hidden = true; $('delegateView').hidden = false; toast('Sesión administrativa cerrada.') }
-    $('adminPeriod').onchange = () => {
-      const selector = $('adminPeriod')
-      if (!selector.checkValidity()) { selector.value = '2026-11' }
-      const session = getAdminSession()
-      if (session) void showAdmin(session.accessToken)
-    }
+    setupAdminPeriodPicker()
     $('adminDownloadComplete').onclick = event => exportPlan('wordComplete', adminRows, event.currentTarget)
     $('adminDownloadExcelComplete').onclick = event => exportPlan('excelComplete', adminRows, event.currentTarget)
     $('adminDownloadCentral').onclick = event => exportForSatCentral(event.currentTarget)
