@@ -17,7 +17,7 @@ $$;
 
 create or replace function sat_private.sat_record_password_change()
 returns trigger language plpgsql security definer set search_path = ''
-as $
+as $sat_password$
 begin
   if old.encrypted_password is distinct from new.encrypted_password
     and auth.uid() = new.id then
@@ -27,7 +27,7 @@ begin
   end if;
   return new;
 end;
-$;
+$sat_password$;
 drop trigger if exists sat_record_password_change on auth.users;
 create trigger sat_record_password_change after update of encrypted_password on auth.users
 for each row execute function sat_private.sat_record_password_change();
