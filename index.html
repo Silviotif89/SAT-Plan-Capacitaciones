@@ -26,7 +26,7 @@
         <div class="hero-inner">
           <div class="brand"><img class="logo" src="assets/intur-nicaragua-unica.svg" alt="INTUR · Nicaragua Única"><div><span>Instituto Nicaragüense de Turismo</span><strong>Nicaragua Única... Original</strong></div></div>
           <div class="header-title"><span>SAT INTUR</span><strong>Registro del Plan Mensual de Capacitaciones</strong></div>
-          <div class="header-actions"><span class="period-label">▣ &nbsp;Noviembre 2026</span><a class="header-delegation" href="#identification"><small>Delegación</small><strong id="headerDelegationName">Chinandega</strong></a><button class="admin-access" id="adminAccess" type="button">◉ &nbsp;Acceso Admin</button></div>
+          <div class="header-actions"><span class="period-label" id="selectedPeriodLabel">▣ &nbsp;Noviembre 2026</span><a class="header-delegation" href="#identification"><small>Delegación</small><strong id="headerDelegationName">Chinandega</strong></a><button class="admin-access" id="adminAccess" type="button">◉ &nbsp;Acceso Admin</button></div>
         </div>
       </header>
 
@@ -45,13 +45,11 @@
         <label>Nueva contraseña <input id="satNewPassword" type="password" minlength="12" maxlength="72" autocomplete="new-password" required></label>
         <button class="button" type="submit">Guardar contraseña</button>
       </form>
-      <button id="satChangePassword" class="button ghost" type="button" hidden>Cambiar contraseña</button>
-      <button id="satDelegationLogout" class="button ghost" type="button" hidden>Cerrar sesión de delegación</button>
       <p id="satAccessMessage" role="status"></p>
-      <div id="satOwnPlans"></div>
+      <p id="delegationReadOnly" role="status" hidden>Este plan fue enviado y está disponible únicamente para consulta y descarga. Para modificarlo, solicite habilitación a la DDT.</p>
     </section>
     <section id="delegateView" hidden>
-      <div class="page-heading" id="pageHeading"><div><h1>Registro de capacitaciones por delegación</h1><p>Completá la información, revisala y guardala. Los datos quedan registrados en línea para seguimiento de la DDT.</p></div><div class="brand-stripe heading-stripe" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div>
+      <div class="page-heading" id="pageHeading"><div><h1>Registro de capacitaciones por delegación</h1><p>Completá la información, revisala y guardala. Los datos quedan registrados en línea para seguimiento de la DDT.</p></div><div class="delegate-session-actions" id="satDelegationSessionActions" hidden><label id="delegationPeriodWrap">Mes y año <input id="delegationPeriod" type="month" min="1900-01" max="9999-12" value="2026-11"></label><button id="satChangePassword" class="button ghost" type="button" hidden>Cambiar contraseña</button><button id="satDelegationLogout" class="button ghost" type="button" hidden>Cerrar sesión</button></div></div>
       <section class="panel identity-panel" id="identification">
         <div class="panel-title"><div><span class="eyebrow dark">Identificación territorial</span><h2>Delegación y persona que registra</h2><p>Estos datos permiten saber quién completó el plan y contactarle si hace falta una aclaración.</p></div><span class="status-pill" id="planStatus">Borrador local</span></div>
         <div class="identity-grid">
@@ -131,7 +129,10 @@
     </section>
     <section id="satAccounts" class="sat-access" hidden>
       <h2>Usuarios y Contraseñas</h2>
+      <p>Administrá el acceso por delegación. Las contraseñas temporales aparecen solo al crear o restablecer una cuenta.</p>
+      <button id="satAccountsCreateAll" class="button primary" type="button">Crear cuentas pendientes</button>
       <p id="satAccountsMessage" role="status"></p>
+      <div id="satAccountsCredentials" class="sat-accounts-credentials" aria-live="polite" hidden></div>
       <div id="satAccountsList"></div>
     </section>
   </main>

@@ -1,11 +1,26 @@
 /* Generación local de planes mensuales editables. No envía información fuera de Supabase. */
 (() => {
   'use strict'
-  const MONTH = 'NOVIEMBRE 2026'
   const xml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[char])
   const textBytes = value => new TextEncoder().encode(value)
   const safeName = value => String(value || 'DELEGACION').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').toUpperCase()
-  const fileName = (extension, delegation) => `PLAN_MENSUAL_NOVIEMBRE_2026_${safeName(delegation)}.${extension}`
+  const periodKey = plan => {
+    const explicit = String(plan?.period || '').slice(0, 7)
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(explicit)) return explicit
+    const activityDate = (plan?.activities || []).find(item => /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(String(item.date || '')))?.date
+    return activityDate ? String(activityDate).slice(0, 7) : '2026-11'
+  }
+  const periodInfo = plan => {
+    const [year, month] = periodKey(plan).split('-').map(Number)
+    const monthName = new Intl.DateTimeFormat('es-NI', { month: 'long' }).format(new Date(year, month - 1, 1))
+    const title = `${monthName[0].toLocaleUpperCase('es-NI')}${monthName.slice(1)} ${year}`
+    const upper = title.toLocaleUpperCase('es-NI')
+    return { title, upper, slug: `${safeName(monthName)}_${year}`, sheetName: `PLAN ${upper}` }
+  }
+  const fileName = (extension, planOrDelegation) => {
+    const plan = typeof planOrDelegation === 'object' && planOrDelegation !== null ? planOrDelegation : { delegation: planOrDelegation }
+    return `PLAN_MENSUAL_${periodInfo(plan).slug}_${safeName(plan.delegation || 'COMPLETO')}.${extension}`
+  }
   const dateLabel = value => {
     if (!value) return 'Sin fecha registrada'
     const [year, month, day] = String(value).split('-').map(Number)
@@ -22,7 +37,7 @@
   }
   const timeRange = item => [item.startTime, item.endTime].filter(Boolean).join(' - ')
   const delegationTitle = delegation => ['RACCN', 'RACCS'].includes(String(delegation).toUpperCase()) ? 'DELEGACIÓN REGIONAL DE' : 'DELEGACIÓN DEPARTAMENTAL DE'
-  const activities = plan => [...(plan.activities || [])].filter(item => String(item.status || '').toUpperCase() !== 'CANCELADA' && !item.draft).sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')))
+  const activities = plan => [...(plan.activities || [])].filter(item => String(item.status || '').toUpperCase() !== 'CANCELADA' && !item.draft && (!item.date || String(item.date).startsWith(`${periodKey(plan)}-`))).sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')))
   const crcTable = (() => { const table = new Uint32Array(256); for (let n = 0; n < 256; n += 1) { let c = n; for (let k = 0; k < 8; k += 1) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1); table[n] = c >>> 0 } return table })()
   const crc32 = bytes => { let c = 0xffffffff; for (const byte of bytes) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0 }
   const zip = files => {
@@ -84,7 +99,7 @@
     ctx.fillStyle = '#d60978'; ctx.fillRect(0, 0, width * .25, 10); ctx.fillStyle = '#06a6c9'; ctx.fillRect(width * .25, 0, width * .25, 10); ctx.fillStyle = '#16a05d'; ctx.fillRect(width * .5, 0, width * .25, 10); ctx.fillStyle = '#f4c400'; ctx.fillRect(width * .75, 0, width * .25, 10)
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 10, width, top - 10)
     ctx.fillStyle = '#183b76'; ctx.font = '800 43px Arial'; ctx.fillText('PLAN MENSUAL DE CAPACITACIONES', 410, 91)
-    ctx.fillStyle = '#63728a'; ctx.font = '600 30px Arial'; ctx.fillText(MONTH[0] + MONTH.slice(1).toLocaleLowerCase('es-NI'), 410, 139)
+    ctx.fillStyle = '#63728a'; ctx.font = '600 30px Arial'; ctx.fillText(periodInfo(plan).title, 410, 139)
     ctx.fillStyle = '#d60978'; ctx.font = '700 23px Arial'; ctx.fillText(`${delegationTitle(plan.delegation)} ${String(plan.delegation || '').toLocaleUpperCase('es-NI')}`, 410, 183)
     ctx.fillStyle = '#74849b'; ctx.font = '700 16px Arial'; ctx.fillText('GENERADO DESDE SAT · INTUR', width - 360, 222)
     const boxY = 52, boxW = 275, boxH = 88
@@ -137,6 +152,7 @@
   }
   const field = (label, value) => value === undefined || value === null || String(value).trim() === '' ? '' : `<w:p><w:pPr><w:spacing w:after="80"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>${xml(label)}: </w:t></w:r><w:r><w:t xml:space="preserve">${xml(value)}</w:t></w:r></w:p>`
   const docx = async plan => {
+    const month = periodInfo(plan)
     let logoBytes = null
     try { const response = await fetch('assets/intur-header.jpg'); if (!response.ok) throw new Error('Recurso institucional no disponible'); logoBytes = new Uint8Array(await response.arrayBuffer()) } catch (_) { /* La descarga mantiene el formato aun si el recurso no está disponible. */ }
     const rows = activities(plan); let previousDate = ''
@@ -149,11 +165,11 @@
     const logo = logoBytes ? '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="140"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="5486400" cy="925000"/><wp:docPr id="1" name="Encabezado institucional"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="intur-header.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="5486400" cy="925000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>' : ''
     const unitHeading = plan.complete ? 'DIRECCIÓN DE DESARROLLO TURÍSTICO' : `${delegationTitle(plan.delegation)} ${String(plan.delegation).toUpperCase()}`
     const departmentHeading = plan.complete ? 'DEPARTAMENTO DE ACOMPAÑAMIENTO TÉCNICO' : ''
-    const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${logo}<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="100"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="26"/></w:rPr><w:t>INSTITUTO NICARAGÜENSE DE TURISMO</w:t></w:r></w:p><w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="100"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>${xml(unitHeading)}</w:t></w:r></w:p>${departmentHeading ? `<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="100"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>${xml(departmentHeading)}</w:t></w:r></w:p>` : ''}<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="360"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="24"/></w:rPr><w:t>PLAN MENSUAL DE CAPACITACIONES ${MONTH}</w:t></w:r></w:p>${content}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`
+    const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${logo}<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="100"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="26"/></w:rPr><w:t>INSTITUTO NICARAGÜENSE DE TURISMO</w:t></w:r></w:p><w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="100"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>${xml(unitHeading)}</w:t></w:r></w:p>${departmentHeading ? `<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="100"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>${xml(departmentHeading)}</w:t></w:r></w:p>` : ''}<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="360"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="24"/></w:rPr><w:t>PLAN MENSUAL DE CAPACITACIONES ${month.upper}</w:t></w:r></w:p>${content}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`
     return zip([
       { name: '[Content_Types].xml', content: `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${logoBytes ? '<Default Extension="jpg" ContentType="image/jpeg"/>' : ''}<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>` },
       { name: '_rels/.rels', content: '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>' },
-      { name: 'docProps/core.xml', content: `<?xml version="1.0" encoding="UTF-8"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Plan mensual de capacitaciones ${MONTH}</dc:title><dc:creator>INTUR</dc:creator></cp:coreProperties>` },
+      { name: 'docProps/core.xml', content: `<?xml version="1.0" encoding="UTF-8"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Plan mensual de capacitaciones ${month.upper}</dc:title><dc:creator>INTUR</dc:creator></cp:coreProperties>` },
       { name: 'word/document.xml', content: documentXml }, { name: 'word/_rels/document.xml.rels', content: `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${logoBytes ? '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/intur-header.jpg"/>' : ''}</Relationships>` }, ...(logoBytes ? [{ name: 'word/media/intur-header.jpg', content: logoBytes }] : [])
     ])
   }
@@ -161,6 +177,7 @@
   const templateField = (label, value, keepNext = true) => value === undefined || value === null || String(value).trim() === '' ? '' : `<w:p><w:pPr>${keepNext ? '<w:keepNext/>' : ''}<w:keepLines/><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="22"/></w:rPr><w:t>${xml(label)}:</w:t></w:r><w:r><w:rPr><w:sz w:val="22"/></w:rPr><w:t xml:space="preserve"> ${xml(value)}</w:t></w:r></w:p>`
   const templateBlank = () => '<w:p><w:pPr><w:keepLines/><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:p>'
   const docxFromTemplate = async plan => {
+    const month = periodInfo(plan)
     if (!window.PizZip) throw new Error('No se pudo cargar la plantilla institucional de Word.')
     const response = await fetch('assets/plantilla-sat-mensual.docx')
     if (!response.ok) throw new Error('No se encontró la plantilla institucional de Word.')
@@ -183,7 +200,7 @@
       return `${dateHeading}${templateParagraph(`${item.globalNumber || index + 1}. ${item.topic || 'Capacitación sin tema'}`, { bold: true, keepNext: true, before: dateHeading ? 0 : 60, after: 40 })}${plan.complete ? templateField('Departamento o región', item.delegation || plan.delegation) : ''}${templateField('Municipio', item.municipality)}${templateField('Hora', timeRange(item))}${templateField('Lugar', item.location)}${templateField('Institución que imparte', item.trainingProvider)}${templateField('Facilitador/a INTUR CENTRAL', item.ddtFacilitator)}${templateField('Participan', item.participatingInstitutions)}${templateField('Proyección de participantes', item.projectedParticipants)}${templateField('Responsable', item.responsible)}${templateField('Observación', observation, false)}${templateBlank()}`
     }).join('') || templateParagraph('No se registraron capacitaciones para este plan.', { before: 60 })
     const unitHeading = plan.complete ? 'DIRECCIÓN DE DESARROLLO TURÍSTICO' : `${delegationTitle(plan.delegation)} ${String(plan.delegation || '').toUpperCase()}`
-    const replacementBody = `${templateParagraph('INSTITUTO NICARAGÜENSE DE TURISMO', { center: true, bold: true })}${templateParagraph(unitHeading, { center: true, bold: true })}${templateParagraph(`PLAN MENSUAL DE CAPACITACIONES ${MONTH}`, { center: true, bold: true, underline: true })}${content}${section}`
+    const replacementBody = `${templateParagraph('INSTITUTO NICARAGÜENSE DE TURISMO', { center: true, bold: true })}${templateParagraph(unitHeading, { center: true, bold: true })}${templateParagraph(`PLAN MENSUAL DE CAPACITACIONES ${month.upper}`, { center: true, bold: true, underline: true })}${content}${section}`
     zip.file('word/document.xml', `${original.slice(0, bodyStart + '<w:body>'.length)}${replacementBody}</w:body>${original.slice(bodyEnd + '</w:body>'.length)}`)
     return zip.generate({ type: 'uint8array', compression: 'DEFLATE' })
   }
@@ -206,8 +223,9 @@
     if (sectionStart < 0) throw new Error('La plantilla institucional no contiene su configuración de página.')
     const section = existingBody.slice(sectionStart).replace(/<w:pgSz\b[^>]*\/>/, '<w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/>').replace(/<w:pgMar\b[^>]*\/>/, '<w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360" w:gutter="0"/>')
     const ordered = [...(rows || [])].filter(item => String(item.status || '').toUpperCase() === 'CANCELADA').sort((a,b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.delegation || '').localeCompare(String(b.delegation || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')))
-    const heading = templateParagraph('INSTITUTO NICARAGÜENSE DE TURISMO', { center: true, bold: true }) + templateParagraph('DIRECCIÓN DE DESARROLLO TURÍSTICO', { center: true, bold: true }) + templateParagraph('INFORME DE CAPACITACIONES CANCELADAS · NOVIEMBRE 2026', { center: true, bold: true, before: 100, after: 100 })
-    const summary = templateParagraph(`Período: ${month ? 'Noviembre 2026' : 'Todos los meses registrados'} · Total: ${ordered.length} cancelaciones`, { before: 80, after: 100 })
+    const reportPeriod = month ? periodInfo({ period: `${month}-01` }).title : 'Todos los meses registrados'
+    const heading = templateParagraph('INSTITUTO NICARAGÜENSE DE TURISMO', { center: true, bold: true }) + templateParagraph('DIRECCIÓN DE DESARROLLO TURÍSTICO', { center: true, bold: true }) + templateParagraph(`INFORME DE CAPACITACIONES CANCELADAS${month ? ` · ${periodInfo({ period: `${month}-01` }).upper}` : ''}`, { center: true, bold: true, before: 100, after: 100 })
+    const summary = templateParagraph(`Período: ${reportPeriod} · Total: ${ordered.length} cancelaciones`, { before: 80, after: 100 })
     const borders = '<w:tblBorders><w:top w:val="single" w:sz="6" w:color="8FA3B8"/><w:left w:val="single" w:sz="6" w:color="8FA3B8"/><w:bottom w:val="single" w:sz="6" w:color="8FA3B8"/><w:right w:val="single" w:sz="6" w:color="8FA3B8"/><w:insideH w:val="single" w:sz="4" w:color="C5D0DC"/><w:insideV w:val="single" w:sz="4" w:color="C5D0DC"/></w:tblBorders>'
     const widths = [600, 1550, 2200, 1050, 3100, 1500]
     const cellXml = (value, width, header = false) => `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${header ? '<w:shd w:fill="1760B4"/>' : ''}</w:tcPr><w:p><w:pPr><w:spacing w:after="0"/></w:pPr><w:r><w:rPr>${header ? '<w:b/><w:color w:val="FFFFFF"/>' : ''}<w:sz w:val="16"/></w:rPr><w:t xml:space="preserve">${xml(value)}</w:t></w:r></w:p></w:tc>`
@@ -222,9 +240,10 @@
   const col = index => { let out = ''; for (let value = index; value > 0; value = Math.floor((value - 1) / 26)) out = String.fromCharCode(65 + ((value - 1) % 26)) + out; return out }
   const cell = (ref, value, style = 0, number = false) => number ? `<c r="${ref}" s="${style}"><v>${Number(value) || 0}</v></c>` : `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xml(value ?? '')}</t></is></c>`
   const xlsx = plan => {
+    const month = periodInfo(plan)
     const headers = ['Nº', 'Departamento o región', 'Municipio', 'Nombre de la capacitación', 'Fecha', 'Hora', 'Duración', 'Lugar', 'Institución que imparte', 'Grupo meta o participantes', 'Proyección de participantes', 'Hombres', 'Mujeres', 'Observaciones']
     const data = activities(plan); const width = [7,25,19,42,18,16,16,30,27,31,18,12,12,36]
-    const rows = [`<row r="1" ht="25" customHeight="1">${cell('A1','INSTITUTO NICARAGÜENSE DE TURISMO',1)}</row>`,`<row r="2" ht="22" customHeight="1">${cell('A2',`${delegationTitle(plan.delegation)} ${String(plan.delegation || '').toUpperCase()}`,1)}</row>`,`<row r="3" ht="24" customHeight="1">${cell('A3',`PLAN MENSUAL DE CAPACITACIONES ${MONTH}`,1)}</row>`,'<row r="4"/>',`<row r="5" ht="38" customHeight="1">${headers.map((h,i)=>cell(`${col(i+1)}5`,h,2)).join('')}</row>`,...data.map((item,rowIndex)=>{const r=rowIndex+6;const values=[rowIndex+1,plan.delegation,item.municipality,item.topic,item.date,timeRange(item),item.additionalDates||'',item.location,item.trainingProvider,item.participatingInstitutions,item.projectedParticipants,item.hombres??'',item.mujeres??'',item.observations||''];return `<row r="${r}" ht="44" customHeight="1">${values.map((value,i)=>cell(`${col(i+1)}${r}`,value,i===0?4:3,i===0||i===10||(i>10&&value!==''))).join('')}</row>`})]
+    const rows = [`<row r="1" ht="25" customHeight="1">${cell('A1','INSTITUTO NICARAGÜENSE DE TURISMO',1)}</row>`,`<row r="2" ht="22" customHeight="1">${cell('A2',`${delegationTitle(plan.delegation)} ${String(plan.delegation || '').toUpperCase()}`,1)}</row>`,`<row r="3" ht="24" customHeight="1">${cell('A3',`PLAN MENSUAL DE CAPACITACIONES ${month.upper}`,1)}</row>`,'<row r="4"/>',`<row r="5" ht="38" customHeight="1">${headers.map((h,i)=>cell(`${col(i+1)}5`,h,2)).join('')}</row>`,...data.map((item,rowIndex)=>{const r=rowIndex+6;const values=[rowIndex+1,plan.delegation,item.municipality,item.topic,item.date,timeRange(item),item.additionalDates||'',item.location,item.trainingProvider,item.participatingInstitutions,item.projectedParticipants,item.hombres??'',item.mujeres??'',item.observations||''];return `<row r="${r}" ht="44" customHeight="1">${values.map((value,i)=>cell(`${col(i+1)}${r}`,value,i===0?4:3,i===0||i===10||(i>10&&value!==''))).join('')}</row>`})]
     const endRow=Math.max(6,data.length+5)
     const sheet=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"><pane ySplit="5" topLeftCell="A6" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>${width.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</cols><sheetData>${rows.join('')}</sheetData><mergeCells count="3"><mergeCell ref="A1:N1"/><mergeCell ref="A2:N2"/><mergeCell ref="A3:N3"/></mergeCells><autoFilter ref="A5:N${endRow}"/><pageMargins left="0.35" right="0.35" top="0.55" bottom="0.55" header="0.2" footer="0.2"/></worksheet>`
     return zip([
@@ -400,7 +419,7 @@
     const sheetDataMatch = /<sheetData\b[^>]*>([\s\S]*?)<\/sheetData>/.exec(sheetXml)
     if (!sheetDataMatch) throw new Error('La plantilla Excel no contiene la tabla principal.')
     const numberingActivities = [...(plan.activities || [])]
-      .filter(item => !item.draft && String(item.date || '').startsWith('2026-11-'))
+      .filter(item => !item.draft && String(item.date || '').startsWith(`${periodKey(plan)}-`))
     const eligibleActivities = numberingActivities.filter(item => String(item.status || '').toUpperCase() !== 'CANCELADA')
     const chronologicalActivities = [...numberingActivities]
       .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')) || String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' }))
@@ -416,7 +435,7 @@
         plan.complete ? generalPlanNumbers.get(item) : index + 1, String(item.delegation || plan.delegation || '').toUpperCase(), item.municipality || '', item.topic || '', scheduleLabel(item), '', '', '', '', '', dateCell(item),
         item.projectedParticipants === '' || item.projectedParticipants == null || !Number.isFinite(Number(item.projectedParticipants)) ? '' : Number(item.projectedParticipants), facilitatorLabel(item), observationCell(item),
       ])
-    if (!rows.length) throw new Error('No hay capacitaciones guardadas en Supabase para noviembre de 2026.')
+    if (!rows.length) throw new Error(`No hay capacitaciones guardadas en Supabase para ${periodInfo(plan).title}.`)
     const sourceRows = sheetDataMatch[1]
     const templateRow = /<row\b[^>]*\br="4"[^>]*>[\s\S]*?<\/row>/.exec(sourceRows)?.[0]
     if (!templateRow) throw new Error('No se pudo encontrar la fila de formato en la plantilla.')
@@ -454,6 +473,10 @@
     }
     const headerRows = [...sourceRows.matchAll(/<row\b[^>]*\br="([123])"[^>]*>[\s\S]*?<\/row>/g)].map(match => match[0])
     if (headerRows.length !== 3) throw new Error('La plantilla no contiene sus tres filas de encabezado.')
+    const month = periodInfo(plan)
+    const setCell = (row, reference, value) => row.replace(new RegExp(`(<c\\b[^>]*\\br="${reference}"[^>]*>)[\\s\\S]*?(<\\/c>)`), (_, open, close) => `${open}<is><t>${xml(value)}</t></is>${close}`)
+    headerRows[0] = setCell(headerRows[0], 'A1', `PLAN DE CAPACITACIÓN A IMPARTIRSE EN EL MES DE ${month.upper}`)
+    headerRows[1] = setCell(headerRows[1], 'A2', plan.complete ? 'DEPARTAMENTO: ACOMPAÑAMIENTO TÉCNICO' : `DELEGACIÓN: ${String(plan.delegation || '').toUpperCase()}`)
     const columnHeadings = headerRows.findIndex(row => /<row\b[^>]*\br="3"/.test(row))
     headerRows[columnHeadings] = headerRows[columnHeadings].replace(/<c\b([^>]*\br="E3"[^>]*)>[\s\S]*?<\/c>/, (_, attributes) => `<c${attributes.replace(/\s+t="[^"]*"/, '')} t="inlineStr"><is><t>Horario</t></is></c>`)
     const merges = ['A1:M1', 'A2:M2', ...verticalMergeRanges(rows, 1)]
@@ -474,8 +497,8 @@
     sheetXml = sheetXml.replace(/<mergeCells\b[^>]*>[\s\S]*?<\/mergeCells>/, `<mergeCells count="${merges.length}">${merges.map(ref => `<mergeCell ref="${ref}"/>`).join('')}</mergeCells>`)
     sheetXml = sheetXml.replace(/(<dimension\b[^>]*\bref=")[^"]+/, `$1A1:N${endRow}`)
     sheetXml = sheetXml.replace(/(<autoFilter\b[^>]*\bref=")[^"]+/, `$1A3:N${endRow}`)
-    workbookXml = workbookXml.replace(/(<sheet\b[^>]*\bname=")[^"]+/, '$1PLAN NOVIEMBRE 2026')
-    workbookXml = workbookXml.replace(/(<definedName\b[^>]*name="_xlnm\._FilterDatabase"[^>]*>)[\s\S]*?(<\/definedName>)/, (_, open, close) => `${open}'PLAN NOVIEMBRE 2026'!$A$3:$N$${endRow}${close}`)
+    workbookXml = workbookXml.replace(/(<sheet\b[^>]*\bname=")[^"]+/, `$1${month.sheetName}`)
+    workbookXml = workbookXml.replace(/(<definedName\b[^>]*name="_xlnm\._FilterDatabase"[^>]*>)[\s\S]*?(<\/definedName>)/, (_, open, close) => `${open}'${month.sheetName}'!$A$3:$N$${endRow}${close}`)
     if (addedStyles.length) {
       stylesXml = stylesXml.replace(/(<cellXfs\b[^>]*\bcount=")(\d+)(")/, (_, open, count, close) => `${open}${Number(count) + addedStyles.length}${close}`)
       stylesXml = stylesXml.replace('</cellXfs>', `${addedStyles.join('')}</cellXfs>`)
@@ -484,7 +507,7 @@
     zipFile.file(sheetPath, sheetXml)
     zipFile.file(workbookPath, workbookXml)
     const appPath = 'docProps/app.xml', appXml = zipFile.file(appPath)?.asText()
-    if (appXml) zipFile.file(appPath, appXml.replace(/PLAN (?:SEPTIEMBRE|NOVIEMBRE) 2026/g, 'PLAN NOVIEMBRE 2026'))
+    if (appXml) zipFile.file(appPath, appXml.replace(/PLAN [^<]+?(?=<\/vt:lpstr>)/g, month.sheetName))
     const corePath = 'docProps/core.xml', coreXml = zipFile.file(corePath)?.asText()
     if (coreXml) zipFile.file(corePath, coreXml.replace(/<dc:creator>[\s\S]*?<\/dc:creator>/, '<dc:creator>INTUR</dc:creator>').replace(/<cp:lastModifiedBy>[\s\S]*?<\/cp:lastModifiedBy>/, '<cp:lastModifiedBy>INTUR</cp:lastModifiedBy>'))
     return zipFile.generate({ type: 'uint8array', compression: 'DEFLATE' })
@@ -494,7 +517,7 @@
     const chronology = [...allActivities].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')) || String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' }))
     const numbers = new Map(chronology.map((item, index) => [item.id, index + 1]))
     const activities = allActivities.map(item => ({ ...item, globalNumber: numbers.get(item.id) })).sort((a, b) => String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' }) || String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')))
-    return { complete: true, delegation: 'COMPLETO', activities }
+    return { complete: true, period: rows[0]?.period || '2026-11-01', delegation: 'COMPLETO', activities }
   }
-  window.SATPlanExports={async word(plan){download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan.delegation))},async wordComplete(rows){const plan=completePlan(rows);download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx','COMPLETO'))},async ddtWord(activities){await ddtWord(activities)},async cancellationReport(report){return cancellationExportModule(report)},async excel(plan){download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan.delegation))},async excelComplete(rows){const plan=completePlan(rows);download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx','COMPLETO'))},async image(plan){download(await monthlyPlanImage(plan),'image/png',fileName('png',plan.delegation))}}
+  window.SATPlanExports={async word(plan){download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan))},async wordComplete(rows){const plan=completePlan(rows);download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan))},async ddtWord(activities){await ddtWord(activities)},async cancellationReport(report){return cancellationExportModule(report)},async excel(plan){download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan))},async excelComplete(rows){const plan=completePlan(rows);download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan))},async image(plan){download(await monthlyPlanImage(plan),'image/png',fileName('png',plan))}}
 })()
