@@ -153,7 +153,8 @@ $sat$;
 create or replace function public.sat_service_account(target text)
 returns jsonb language sql stable security definer set search_path=''
 as $sat$
- select jsonb_build_object('auth_user_id',auth_user_id) from sat_private.delegation_accounts where delegation=target
+ select jsonb_build_object('auth_user_id',auth_user_id,'enabled',enabled)
+ from sat_private.delegation_accounts where delegation=target
 $sat$;
 create or replace function public.sat_service_link(target text,account_id uuid)
 returns void language plpgsql security definer set search_path=''
@@ -162,6 +163,16 @@ begin
  update sat_private.delegation_accounts set auth_user_id=account_id,enabled=true,must_change_password=true,updated_at=clock_timestamp()
  where delegation=target and auth_user_id is null;
  if not found then raise exception 'Delegación ya vinculada o inexistente'; end if;
+end;
+$sat$;
+create or replace function public.sat_service_unlink(target text,account_id uuid)
+returns void language plpgsql security definer set search_path=''
+as $sat$
+begin
+ update sat_private.delegation_accounts
+ set auth_user_id=null,enabled=false,must_change_password=true,updated_at=clock_timestamp()
+ where delegation=target and auth_user_id=account_id;
+ if not found then raise exception 'No se pudo revertir el vínculo de la cuenta'; end if;
 end;
 $sat$;
 create or replace function public.sat_service_prepare_reset(target text)
@@ -175,12 +186,14 @@ end;
 $sat$;
 revoke all on function public.sat_my_account(),public.sat_my_november_plan(),public.sat_complete_password_change(),
  public.sat_admin_accounts(),public.sat_admin_enable_account(text,boolean),
- public.sat_service_account(text),public.sat_service_link(text,uuid),public.sat_service_prepare_reset(text)
+ public.sat_service_account(text),public.sat_service_link(text,uuid),public.sat_service_unlink(text,uuid),
+ public.sat_service_prepare_reset(text)
  from public,anon;
 grant execute on function public.sat_my_account(),public.sat_my_november_plan(),public.sat_complete_password_change(),
  public.sat_admin_accounts(),public.sat_admin_enable_account(text,boolean)
  to authenticated;
-grant execute on function public.sat_service_account(text),public.sat_service_link(text,uuid),public.sat_service_prepare_reset(text)
+grant execute on function public.sat_service_account(text),public.sat_service_link(text,uuid),
+ public.sat_service_unlink(text,uuid),public.sat_service_prepare_reset(text)
  to service_role;
 
 create or replace function public.sat_guard_monthly_delegate_update()

@@ -765,7 +765,10 @@
                 method: 'POST', body: JSON.stringify({ delegation: row.delegation, action: row.provisioned ? 'reset' : 'create' })
               }, admin.accessToken)
               await $('satAccountsLink').onclick()
-              status.textContent = created.delegation + ' · Contraseña temporal: ' + created.temporaryPassword
+              const verification = created.checks?.isolation
+                ? 'Inicio, cambio y aislamiento probados. '
+                : created.verified ? 'Inicio de sesión y cambio obligatorio probados. ' : ''
+              status.textContent = created.delegation + ' · ' + verification + 'Contraseña temporal: ' + created.temporaryPassword
             } catch (error) {
               status.textContent = error.message
               button.disabled = false
@@ -793,6 +796,7 @@
         for (const account of accounts.filter(item => !item.provisioned)) {
           try {
             const result = await api('/functions/v1/sat-accounts', { method: 'POST', body: JSON.stringify({ delegation: account.delegation, action: 'create' }) }, admin.accessToken)
+            if (result.verified !== true) throw new Error('La cuenta no confirmó las pruebas de acceso y aislamiento.')
             created.push(result)
           } catch (error) { failures.push(`${account.delegation}: ${error.message}`) }
         }
@@ -805,7 +809,7 @@
           }))
           credentials.hidden = false
         }
-        const summary = `${created.length} cuentas creadas${failures.length ? ` · ${failures.length} requieren revisión: ${failures.join('; ')}` : ''}. Copiá las contraseñas temporales antes de salir de esta pantalla.`
+        const summary = `${created.length} cuentas creadas y probadas${failures.length ? ` · ${failures.length} requieren revisión: ${failures.join('; ')}` : ''}. Copiá las contraseñas temporales antes de salir de esta pantalla.`
         await $('satAccountsLink').onclick(true)
         status.textContent = summary
       } catch (error) { status.textContent = error.message }
