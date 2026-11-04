@@ -191,6 +191,8 @@ input:focus,select:focus,textarea:focus{border-color:#1683d8;box-shadow:0 0 0 3p
 .sat-access details, .sat-account-row { padding: .65rem; border-bottom: 1px solid #dce6f2; }
 .sat-access summary { cursor: pointer; font-weight: 700; }
 .sat-account-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem; }
+.sat-account-password { flex-basis: 100%; color: #23456f; font-weight: 700; }
+.sat-account-password code { display: inline-block; margin-left: .35rem; padding: .2rem .5rem; color: #123b7a; background: #edf4fc; border-radius: .4rem; font: 700 .95rem ui-monospace, monospace; }
 .delegate-session-actions { display: flex; align-items: end; justify-content: flex-end; flex-wrap: wrap; gap: .55rem; }
 .delegate-session-actions label { display: block; margin: 0; color: #526685; font-size: .72rem; font-weight: 800; }
 #delegationPeriod { display: block; min-height: 2.5rem; margin-top: .28rem; padding: .4rem .55rem; color: #123b7a; font: inherit; font-size: .82rem; font-weight: 700; background: #fff; border: 1px solid #cedbef; border-radius: .65rem; }

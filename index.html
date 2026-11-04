@@ -129,14 +129,13 @@
     </section>
     <section id="satAccounts" class="sat-access" hidden>
       <h2>Usuarios y Contraseñas</h2>
-      <p>Administrá el acceso por delegación. Las contraseñas temporales aparecen solo al crear o restablecer una cuenta.</p>
+      <p>Administrá el acceso por delegación. La contraseña vigente no se puede consultar; al crear o restablecer una cuenta, la nueva contraseña temporal aparece en su fila hasta que la ocultes, cierres sesión o recargues la página.</p>
       <div class="sat-temp-passwords">
         <label>Contraseña temporal<input id="satTempPasswordGeneral" type="password" autocomplete="new-password" minlength="8" maxlength="72" placeholder="Ejemplo: nombre*año"></label>
       </div>
-      <p class="sat-temp-password-note">Escribí una contraseña temporal antes de crear o restablecer. Para RACCN y RACCS, el sistema aplica automáticamente su nombre y conserva el año ingresado. La contraseña solo se envía para esa operación; no se guarda en el código ni en el almacenamiento local.</p>
+      <p class="sat-temp-password-note">Escribí una contraseña temporal antes de crear o restablecer. Para RACCN y RACCS, el sistema aplica automáticamente su nombre y conserva el año ingresado. Solo aparece en esta sesión administrativa; Supabase conserva una versión protegida y no permite recuperar la contraseña vigente.</p>
       <button id="satAccountsCreateAll" class="button primary" type="button">Crear cuentas pendientes</button>
       <p id="satAccountsMessage" role="status"></p>
-      <div id="satAccountsCredentials" class="sat-accounts-credentials" aria-live="polite" hidden></div>
       <div id="satAccountsList"></div>
     </section>
   </main>

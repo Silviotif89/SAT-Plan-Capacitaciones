@@ -5,6 +5,7 @@
   const TABLE = 'sat_november_2026_plans'
   const STORAGE_KEY = 'sat-november-2026-online-v1'
   const ADMIN_SESSION_KEY = 'sat-november-admin-session'
+  const adminTemporaryPasswords = new Map()
   const REGIONS = {
     'Pacífico': ['Chinandega', 'León', 'Managua', 'Masaya', 'Rivas', 'Carazo', 'Granada'],
     'Norte': ['Jinotega', 'Matagalpa', 'Nueva Segovia', 'Estelí', 'Madriz'],
@@ -754,21 +755,26 @@
       return password
     }
     const clearTemporaryPasswords = () => { $('satTempPasswordGeneral').value = '' }
-    $('satAccountsLink').onclick = async keepTemporaryCredentials => {
+    $('satAccountsLink').onclick = async () => {
       const admin = getAdminSession()
       if (!admin) return
       $('satAccounts').hidden = false
       const accounts = $('satAccountsList'), status = $('satAccountsMessage')
       accounts.replaceChildren()
       status.textContent = ''
-      if (keepTemporaryCredentials !== true) {
-        $('satAccountsCredentials').replaceChildren()
-        $('satAccountsCredentials').hidden = true
-      }
       try {
         const rows = await rpc('sat_admin_accounts', admin.accessToken)
         for (const row of rows) {
           const line = text('div', `Usuario: ${row.delegation} · ${row.enabled ? 'Habilitada' : 'Deshabilitada'} · Último acceso: ${formatDateTime(row.last_sign_in_at)}`, 'sat-account-row')
+          const temporaryPassword = adminTemporaryPasswords.get(row.delegation)
+          if (temporaryPassword) {
+            const credential = text('span', 'Contraseña temporal: ', 'sat-account-password')
+            credential.append(text('code', temporaryPassword))
+            line.append(credential, adminButton('Ocultar', async () => {
+              adminTemporaryPasswords.delete(row.delegation)
+              await $('satAccountsLink').onclick()
+            }))
+          }
           line.append(adminButton(row.provisioned ? 'Restablecer contraseña' : 'Crear cuenta', async event => {
             const button = event.currentTarget
             button.disabled = true
@@ -779,21 +785,16 @@
                 method: 'POST', body: JSON.stringify({ delegation: row.delegation, action: row.provisioned ? 'reset' : 'create', temporaryPassword })
               }, admin.accessToken)
               $('satTempPasswordGeneral').value = ''
+              adminTemporaryPasswords.set(created.delegation, created.temporaryPassword)
               await $('satAccountsLink').onclick()
               const verification = created.checks?.isolation
                 ? 'Inicio, cambio y aislamiento probados. '
                 : created.verified ? 'Inicio de sesión y cambio obligatorio probados. ' : ''
-              status.textContent = created.delegation + ' · ' + verification + 'Contraseña temporal: ' + created.temporaryPassword
+              status.textContent = created.delegation + ' · ' + verification + 'La contraseña temporal aparece en su fila.'
             } catch (error) {
               status.textContent = error.message
               button.disabled = false
             }
-          }))
-          if (row.provisioned) line.append(adminButton(row.enabled ? 'Deshabilitar' : 'Habilitar', async () => {
-            try {
-              await rpc('sat_admin_enable_account', admin.accessToken, { target: row.delegation, active: !row.enabled })
-              await $('satAccountsLink').onclick()
-            } catch (error) { status.textContent = error.message }
           }))
           accounts.append(line)
         }
@@ -802,9 +803,9 @@
     $('satAccountsCreateAll').onclick = async event => {
       const admin = getAdminSession()
       if (!admin) return
-      const button = event.currentTarget, status = $('satAccountsMessage'), credentials = $('satAccountsCredentials')
-      if (!window.confirm('Se crearán cuentas solo para las delegaciones que aún no tienen acceso. Las contraseñas temporales aparecerán una sola vez para entregarlas de forma segura. ¿Continuar?')) return
-      button.disabled = true; status.textContent = 'Preparando las cuentas pendientes…'; credentials.replaceChildren(); credentials.hidden = true
+      const button = event.currentTarget, status = $('satAccountsMessage')
+      if (!window.confirm('Se crearán cuentas solo para las delegaciones que aún no tienen acceso. Las contraseñas temporales aparecerán en las filas correspondientes hasta cerrar sesión u ocultarlas. ¿Continuar?')) return
+      button.disabled = true; status.textContent = 'Preparando las cuentas pendientes…'
       try {
         const accounts = await rpc('sat_admin_accounts', admin.accessToken)
         const created = [], failures = []
@@ -820,17 +821,11 @@
           } catch (error) { failures.push(`${account.delegation}: ${error.message}`) }
         }
         if (created.length) {
-          credentials.replaceChildren(...created.map(item => {
-            const line = text('p', `${item.delegation} · `)
-            const password = text('code', item.temporaryPassword)
-            line.append(password)
-            return line
-          }))
-          credentials.hidden = false
+          created.forEach(item => adminTemporaryPasswords.set(item.delegation, item.temporaryPassword))
         }
-        const summary = `${created.length} cuentas creadas y probadas${failures.length ? ` · ${failures.length} requieren revisión: ${failures.join('; ')}` : ''}. Copiá las contraseñas temporales antes de salir de esta pantalla.`
+        const summary = `${created.length} cuentas creadas y probadas${failures.length ? ` · ${failures.length} requieren revisión: ${failures.join('; ')}` : ''}. Las contraseñas temporales aparecen en las filas correspondientes hasta cerrar sesión u ocultarlas.`
         if (created.length) clearTemporaryPasswords()
-        await $('satAccountsLink').onclick(true)
+        await $('satAccountsLink').onclick()
         status.textContent = summary
       } catch (error) { status.textContent = error.message }
       finally { button.disabled = false }
@@ -1204,7 +1199,7 @@
     $('adminPlanDdt').onclick = openPlanDdt
     $('ddtBack').onclick = () => { $('planDdtView').hidden = true; $('adminDashboard').hidden = false }
     $('downloadDdtWord').onclick = event => downloadDdtPlan(event.currentTarget)
-    $('adminLogout').onclick = () => { sessionStorage.removeItem(ADMIN_SESSION_KEY); $('adminView').hidden = true; $('delegateView').hidden = true; $('satAccountsLink').hidden = true; $('satAccounts').hidden = true; $('satAccountsMessage').textContent = ''; $('satAccountsCredentials').replaceChildren(); $('satAccountsCredentials').hidden = true; $('satDelegationAccess').hidden = false; toast('Sesión administrativa cerrada.') }
+    $('adminLogout').onclick = () => { adminTemporaryPasswords.clear(); sessionStorage.removeItem(ADMIN_SESSION_KEY); $('adminView').hidden = true; $('delegateView').hidden = true; $('satAccountsLink').hidden = true; $('satAccounts').hidden = true; $('satAccountsMessage').textContent = ''; $('satDelegationAccess').hidden = false; toast('Sesión administrativa cerrada.') }
     setupAdminPeriodPicker()
     setupDelegationAccess()
     $('adminDownloadComplete').onclick = event => exportPlan('wordComplete', adminRows, event.currentTarget)
