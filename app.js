@@ -13,6 +13,7 @@
     'Costa Caribe': ['RACCN', 'RACCS']
   }
   const DELEGATIONS = Object.values(REGIONS).flat()
+  const displayDelegationName = delegation => delegation === 'Prueba' ? 'Prueba (reflejo de León)' : delegation
   const PROVIDERS = ['INTUR CENTRAL', 'INATEC', 'MIFIC', 'MINSA', 'SETEC', 'BOMBEROS', 'POLICÍA', 'Cruz Blanca', 'Delegación Departamental', 'Otra institución']
   const ACTIVITY_TYPES = ['Capacitación', 'Taller', 'Curso', 'Seminario', 'Charla', 'Asistencia técnica', 'Otra']
   const MODALITIES = ['Presencial', 'Virtual', 'Híbrida']
@@ -200,7 +201,7 @@
     $('cancelledCount').textContent = cancelledActivities(current.activities).length
     $('participantCount').textContent = savedActivities.reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0).toLocaleString('es-NI')
     $('delegationMetric').textContent = current.delegation
-    $('headerDelegationName').textContent = current.delegation
+    $('headerDelegationName').textContent = displayDelegationName(current.delegation)
     $('selectedPeriodLabel').textContent = `▣  ${periodLabel(selectedPlanPeriod)}`
     $('lastSaved').textContent = formatDateTime(current.updatedAt)
     $('activitiesHeading').textContent = `Capacitaciones de ${current.delegation}`
@@ -222,7 +223,7 @@
     document.querySelectorAll('#activities input,#activities select,#activities textarea,#activities button,[data-save-activity]').forEach(control => { control.disabled = readonly })
     $('region').value = regionFor(delegationAccount.delegation)
     $('delegation').value = delegationAccount.delegation
-    $('headerDelegationName').textContent = delegationAccount.delegation
+    $('headerDelegationName').textContent = displayDelegationName(delegationAccount.delegation)
     $('delegationPeriodWrap').hidden = false
     $('delegationPeriod').value = selectedPlanPeriod
     $('submitPlan').disabled = readonly
@@ -658,6 +659,7 @@
     function showForcedPasswordChange(account) {
       delegationAccount = account
       delegationSession = session
+      $('headerDelegationName').textContent = displayDelegationName(account.delegation)
       login.hidden = true
       change.hidden = false
       changeButton.hidden = true
@@ -766,7 +768,7 @@
       try {
         const rows = await rpc('sat_admin_accounts', admin.accessToken)
         for (const row of rows) {
-          const accountLabel = row.delegation === 'Prueba' ? 'Prueba (reflejo de León)' : row.delegation
+          const accountLabel = displayDelegationName(row.delegation)
           const line = text('div', `Usuario: ${accountLabel} · ${row.enabled ? 'Habilitada' : 'Deshabilitada'} · Último acceso: ${formatDateTime(row.last_sign_in_at)}`, 'sat-account-row')
           const temporaryPassword = adminTemporaryPasswords.get(row.delegation)
           if (temporaryPassword) {
