@@ -37,6 +37,7 @@
   let delegationSession = null
   let delegationAccount = null
   let selectedPlanPeriod = '2026-11'
+  let activeDelegationStep = 1
   let delegationCanEdit = false
   let adminRows = []
   let ddtActivities = []
@@ -85,7 +86,7 @@
   }
   function saveLocalAndRender() {
     plan().updatedAt = now(); persistLocal(); renderSummary()
-    $('saveMessage').textContent = 'Los cambios están en esta pantalla. Presioná “Guardar actividad” para conservar el borrador.'
+    $('saveMessage').textContent = 'Tus cambios se guardaron en este dispositivo. Podés continuar después desde este mismo equipo.'
   }
   function apiHeaders(token, editToken) {
     const headers = { apikey: CONFIG.publishableKey, Authorization: `Bearer ${token || CONFIG.publishableKey}`, 'Content-Type': 'application/json' }
@@ -167,7 +168,7 @@
   }
   function connectionBanner() {
     const box = $('connection'); box.classList.add('visible', configured ? 'ok' : 'warning')
-    box.textContent = configured ? '● Conexión central activa. Guardar actividad conserva el borrador y Enviar plan lo registra para la DDT.' : '⚠ Configuración pendiente: el formulario conserva borradores locales, pero todavía no puede reunir información de varias delegaciones. Completá config.js y Supabase antes de publicarlo.'
+    box.textContent = configured ? 'Conexión activa. Al enviar, la DDT recibirá el plan.' : 'El formulario puede guardar un borrador en este dispositivo. El envío en línea estará disponible cuando se complete la conexión.'
   }
   function setupSelectors() {
     setOptions($('region'), Object.keys(REGIONS), regionFor(store.selectedDelegation))
@@ -204,12 +205,27 @@
     $('headerDelegationName').textContent = delegationAccount ? displayDelegationName(delegationAccount.delegation) : getAdminSession() ? 'Consola DDT' : 'Sin sesión'
     $('selectedPeriodLabel').textContent = `▣  ${periodLabel(selectedPlanPeriod)}`
     $('lastSaved').textContent = formatDateTime(current.updatedAt)
-    $('activitiesHeading').textContent = `Capacitaciones de ${current.delegation}`
+    $('activitiesHeading').textContent = 'Capacitaciones'
     $('emptyState').querySelector('p').textContent = `Agregá la primera capacitación de tu delegación para ${periodLabel(selectedPlanPeriod).toLocaleLowerCase('es-NI')}.`
-    $('planStatus').textContent = current.status === 'ENVIADO' ? 'Plan enviado' : 'Borrador'
+    const sent = current.status === 'ENVIADO'
+    $('planStatus').textContent = sent ? 'Enviado a la DDT' : current.remoteId ? 'Borrador guardado' : 'Borrador en este dispositivo'
     $('planStatus').classList.toggle('sent', current.status === 'ENVIADO')
-    $('downloadPanel').hidden = !current.remoteId || !current.activities.some(item => !item.draft)
-    $('downloadPanel').querySelector('h2').textContent = current.status === 'ENVIADO' ? 'Tu plan fue enviado a la Dirección de Desarrollo Turístico' : 'Descargá el borrador de tu plan mensual'
+    const downloadReady = Boolean(delegationSession && sent && current.remoteId)
+    $('downloadPanel').hidden = false
+    $('downloadEyebrow').textContent = downloadReady ? 'Plan enviado' : 'Descargas del plan'
+    $('downloadHeading').textContent = downloadReady ? 'Tu plan ya está listo para descargar' : 'Podrás descargar el plan después de enviarlo'
+    $('downloadHelp').textContent = downloadReady
+      ? 'La DDT recibió tu plan. Elegí el formato que necesitás.'
+      : 'Las descargas estarán disponibles cuando envíes el plan a la DDT.'
+    $('downloadWord').disabled = !downloadReady
+    $('downloadExcel').disabled = !downloadReady
+    $('submitStepTitle').textContent = sent ? 'Plan enviado a la DDT' : 'Revisar y enviar'
+    $('submitStepHelp').textContent = sent
+      ? 'La DDT recibió tu plan. Si tenés permiso para editarlo, podés guardar los cambios.'
+      : 'Revisá la información. La DDT (Dirección de Desarrollo Turístico) recibirá el plan cuando lo envíes.'
+    $('confirmReview').closest('.confirmation').hidden = sent
+    $('submitPlan').textContent = sent ? 'Guardar cambios' : 'Enviar plan a la DDT'
+    updatePlanReviewSummary()
   }
   function setDelegationControls() {
     if (!delegationSession || !delegationAccount) return
@@ -224,12 +240,77 @@
     $('region').value = regionFor(delegationAccount.delegation)
     $('delegation').value = delegationAccount.delegation
     $('headerDelegationName').textContent = displayDelegationName(delegationAccount.delegation)
-    $('delegationPeriodWrap').hidden = false
     $('delegationPeriod').value = selectedPlanPeriod
     $('submitPlan').disabled = readonly
     $('submitPlan').textContent = plan().status === 'ENVIADO' ? 'Guardar cambios' : 'Enviar plan a la DDT'
-    $('downloadPanel').hidden = !plan().remoteId || !plan().activities.some(item => !item.draft)
+    renderSummary()
     if (readonly) $('planStatus').textContent = 'Enviado · Solo consulta'
+  }
+  function updatePlanReviewSummary() {
+    const current = plan()
+    const activities = (current.activities || []).filter(item => !item.draft)
+    const active = activities.filter(item => !isCancelled(item))
+    const projected = active.reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0)
+    const person = current.registrantName.trim() || 'persona responsable'
+    $('planReviewSummary').textContent = `${displayDelegationName(current.delegation)} · ${periodLabel(selectedPlanPeriod)}. ${activities.length} capacitación${activities.length === 1 ? '' : 'es'} registrada${activities.length === 1 ? '' : 's'} (${cancelledActivities(activities).length} cancelada${cancelledActivities(activities).length === 1 ? '' : 's'}), a cargo de ${person}. Proyección: ${projected.toLocaleString('es-NI')} participantes.`
+    const reviewList = $('planReviewActivities')
+    reviewList.replaceChildren(...activities.map((item, index) => {
+      const state = isCancelled(item) ? 'Cancelada' : 'Programada'
+      const details = `${index + 1}. ${item.topic || 'Capacitación sin tema'} · ${state} · ${formatActivityDate(item.date)} · ${item.startTime || 'Sin hora'} a ${item.endTime || 'Sin hora'} · ${item.municipality || 'Sin municipio'} · ${item.location || 'Sin lugar'} · ${Number(item.projectedParticipants) || 0} participantes`
+      return text('li', details, isCancelled(item) ? 'review-cancelled' : '')
+    }))
+    reviewList.hidden = activities.length === 0
+  }
+  function showDelegationStep(step, shouldScroll = true) {
+    activeDelegationStep = Math.max(1, Math.min(3, Number(step) || 1))
+    for (let number = 1; number <= 3; number += 1) {
+      $(`delegationStep${number}`).hidden = number !== activeDelegationStep
+      const progress = $(`stepProgress${number}`)
+      progress.classList.toggle('is-current', number === activeDelegationStep)
+      progress.classList.toggle('is-complete', number < activeDelegationStep)
+      if (number === activeDelegationStep) progress.setAttribute('aria-current', 'step')
+      else progress.removeAttribute('aria-current')
+    }
+    if (activeDelegationStep === 3) updatePlanReviewSummary()
+    if (shouldScroll) {
+      const heading = $(`delegationStep${activeDelegationStep}`).querySelector('h2')
+      if (heading) {
+        heading.setAttribute('tabindex', '-1')
+        heading.focus({ preventScroll: true })
+        heading.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }
+  }
+  function saveDraftOnDevice() {
+    plan().updatedAt = now()
+    persistLocal()
+    renderSummary()
+    $('saveMessage').textContent = 'Borrador guardado en este dispositivo. Podés volver más tarde desde este mismo equipo.'
+    toast('Borrador guardado en este dispositivo.')
+  }
+  function registrantStepIssues() {
+    const current = plan(); const issues = []
+    if (!current.registrantName.trim()) issues.push({ message: 'Escribí el nombre y apellido de quien llena el plan.', target: () => $('registrantName') })
+    if (!current.registrantRole.trim()) issues.push({ message: 'Escribí el cargo de la persona que registra.', target: () => $('registrantRole') })
+    if (!/^\S+@\S+\.\S+$/.test(current.registrantEmail)) issues.push({ message: 'Escribí un correo válido, por ejemplo nombre@intur.gob.ni.', target: () => $('registrantEmail') })
+    if (!current.registrantPhone.trim()) issues.push({ message: 'Escribí un teléfono de contacto, por ejemplo 8888-0000.', target: () => $('registrantPhone') })
+    return issues
+  }
+  function showIssuesInStep(issues, fallbackStep) {
+    const ids = issues.map(issue => { try { return issue.target?.()?.id || '' } catch (_) { return '' } })
+    const profileFields = ['registrantName', 'registrantRole', 'registrantEmail', 'registrantPhone']
+    const step = ids.includes('confirmReview') ? 3 : ids.some(id => profileFields.includes(id)) ? 1 : fallbackStep
+    showDelegationStep(step)
+    showValidationIssues(issues)
+  }
+  function requestPlanSubmission() {
+    const current = plan()
+    const issues = validatePlan(current.status !== 'ENVIADO')
+    if (issues.length) { showIssuesInStep(issues, 3); return }
+    updatePlanReviewSummary()
+    $('submitConfirmSummary').textContent = $('planReviewSummary').textContent
+    $('confirmSubmitPlan').textContent = current.status === 'ENVIADO' ? 'Sí, guardar cambios' : 'Sí, enviar el plan'
+    $('submitConfirmDialog').showModal()
   }
   function label(text, input, help = '', className = '') {
     const wrapper = document.createElement('label'); if (className) wrapper.className = className
@@ -400,8 +481,13 @@
     if (!current.activities.length) addIssue('Agregá al menos una capacitación.', () => $('addFirst'))
     current.activities.forEach((item, index) => {
       if (item.draft) addIssue(`Guardá la actividad ${index + 1} antes de enviar.`, () => document.querySelector(`[data-save-activity="${item.id}"]`))
-      const required = ['activityType', 'topic', 'date', 'startTime', 'endTime', 'municipality', 'location', 'modality', 'trainingProvider', 'participatingInstitutions', 'responsible']
-      required.forEach(key => { if (!String(item[key] || '').trim()) addIssue(`Completá este dato de la actividad ${index + 1}.`, () => activityControl(item.id, key), item.id) })
+      const required = {
+        activityType: 'Seleccioná el tipo de actividad', topic: 'Escribí el tema de la capacitación', date: 'Elegí la fecha principal',
+        startTime: 'Indicá la hora de inicio', endTime: 'Indicá la hora de finalización', municipality: 'Escribí el municipio',
+        location: 'Escribí el lugar exacto', modality: 'Seleccioná la modalidad', trainingProvider: 'Seleccioná quién impartirá la actividad',
+        participatingInstitutions: 'Escribí qué instituciones participarán', responsible: 'Escribí quién será responsable'
+      }
+      Object.entries(required).forEach(([key, message]) => { if (!String(item[key] || '').trim()) addIssue(`${message} ${index + 1}.`, () => activityControl(item.id, key), item.id) })
       if (item.date && !String(item.date).startsWith(selectedPlanPeriod + '-')) addIssue('La fecha debe corresponder al mes seleccionado.', () => activityControl(item.id, 'date'), item.id)
       if (Number(item.projectedParticipants) <= 0) addIssue('Ingresá una proyección mayor que cero.', () => activityControl(item.id, 'projectedParticipants'), item.id)
     })
@@ -442,7 +528,13 @@
       }
       else rows = await api(`/rest/v1/${endpointTable}?select=*`, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...payload, created_at: now() }) }, accessToken, current.editToken)
       if (!rows?.length) throw new Error('No se guardó: el plan cambió desde la última consulta. Actualizá la página, revisá los cambios y volvé a guardar para no perder información.')
-      current.remoteId = rows[0].id; current.remoteUpdatedAt = rows[0].updated_at || now(); current.status = status; current.updatedAt = current.remoteUpdatedAt; persistLocal(); clearValidationErrors(); renderSummary()
+      const storedStatus = String(rows[0].status || '').toUpperCase()
+      current.remoteId = rows[0].id; current.remoteUpdatedAt = rows[0].updated_at || now(); if (storedStatus) current.status = storedStatus; current.updatedAt = current.remoteUpdatedAt; persistLocal(); clearValidationErrors(); renderSummary()
+      if (status === 'ENVIADO' && storedStatus !== 'ENVIADO') {
+        $('saveMessage').textContent = 'El plan se guardó, pero el sistema todavía no confirmó que fue enviado. Las descargas seguirán deshabilitadas. Actualizá e intentá nuevamente; si continúa, contactá a la DDT.'
+        toast('El envío todavía no fue confirmado por el sistema.')
+        return false
+      }
       $('saveMessage').textContent = status === 'ENVIADO' ? 'Plan enviado correctamente a la DDT.' : 'Borrador guardado en línea.'
       toast(status === 'ENVIADO' ? 'Plan enviado correctamente.' : 'Borrador guardado en línea.')
       return true
@@ -450,11 +542,12 @@
       const message = error.status === 409 ? 'Esta delegación ya tiene un plan registrado desde otro navegador. Contactá a la DDT para recuperar el acceso.' : `No se pudo guardar: ${error.message}`
       $('saveMessage').textContent = message; toast(message)
       return false
-    } finally { savingPlan = false; submit.disabled = false; submit.textContent = submitText }
+    } finally { savingPlan = false; submit.disabled = false; submit.textContent = plan().status === 'ENVIADO' ? 'Guardar cambios' : submitText }
   }
   async function loadPlanForExcel(sourcePlan) {
     if (!configured) throw new Error('No hay conexión con Supabase para consultar el plan actualizado.')
-    if (delegationSession) {
+    const delegatedViewActive = Boolean(delegationSession && $('adminView').hidden)
+    if (delegatedViewActive) {
       if (selectedPlanPeriod === '2026-11') {
         const row = await api('/rest/v1/rpc/sat_my_november_plan', { method: 'POST', body: '{}' }, delegationSession.access_token)
         if (!row) throw new Error('No hay un plan de noviembre registrado.')
@@ -464,7 +557,7 @@
       if (!rows.length) throw new Error('No hay un plan guardado para este mes.')
       return rows[0]
     }
-    const delegationAccess = Boolean(sourcePlan.remoteId && sourcePlan.editToken)
+    const delegationAccess = Boolean(!delegationSession && sourcePlan.remoteId && sourcePlan.editToken)
     const recordId = sourcePlan.remoteId || sourcePlan.id
     if (!recordId) throw new Error('El plan debe estar enviado a Supabase antes de descargarlo.')
     const adminSession = delegationAccess ? null : getAdminSession()
@@ -606,16 +699,27 @@
     const exporter = window.SATPlanExports?.[format]
     if (!exporter) { toast('No se pudo preparar la descarga. Actualizá la página e intentá nuevamente.'); return }
     const label = button?.textContent
+      const delegatedViewActive = Boolean(delegationSession && $('adminView').hidden)
+      const requiresSubmittedPlan = Boolean(delegatedViewActive && ['word', 'excel'].includes(format))
+    let submissionConfirmed = !requiresSubmittedPlan
     try {
       if (button) { button.disabled = true; button.textContent = format === 'image' ? 'Generando imagen…' : 'Generando documento…' }
       let exportSource = ['word', 'excel', 'image'].includes(format) ? await loadPlanForExcel(sourcePlan) : format === 'excelComplete' ? await loadPlansForExcel() : sourcePlan
-      const period = `${delegationSession ? selectedPlanPeriod : adminPeriod}-01`
+      if (requiresSubmittedPlan) {
+        if (exportSource?.status !== 'ENVIADO') {
+          $('downloadWord').disabled = true
+          $('downloadExcel').disabled = true
+          throw new Error('Las descargas estarán disponibles cuando envíes el plan a la DDT y el sistema confirme que fue recibido.')
+        }
+        submissionConfirmed = true
+      }
+      const period = `${delegatedViewActive ? selectedPlanPeriod : adminPeriod}-01`
       if (Array.isArray(exportSource)) exportSource = exportSource.map(row => ({ ...row, period: row.period || period }))
       else exportSource = { ...exportSource, period: exportSource.period || period }
       await exporter(exportSource); toast(`Plan mensual en ${format === 'word' ? 'Word' : format === 'image' ? 'imagen PNG' : 'Excel'} generado.`)
     }
     catch (error) { toast(`No se pudo generar el documento: ${error.message}`) }
-    finally { if (button) setTimeout(() => { button.disabled = false; button.textContent = label }, 350) }
+    finally { if (button) setTimeout(() => { button.disabled = requiresSubmittedPlan ? !submissionConfirmed : false; button.textContent = label }, 350) }
   }
   function exportForSatCentral(button) {
     const plans = adminRows.filter(row => row.status === 'ENVIADO')
@@ -697,9 +801,11 @@
       $('region').value = regionFor(account.delegation)
       $('delegation').value = account.delegation
       store.selectedDelegation = account.delegation
+      $('selectedPeriodLabel').hidden = true
       selectedPlanPeriod = $('delegationPeriod').value || '2026-11'
       await refreshSelectedPlanFromRemote()
       setDelegationControls()
+      showDelegationStep(1, false)
     }
     login.onsubmit = async event => {
       event.preventDefault()
@@ -743,6 +849,9 @@
       const token = session?.access_token
       session = null
       delegationSession = null; delegationAccount = null; selectedPlanPeriod = '2026-11'; delegationCanEdit = false
+      $('delegationPeriod').value = selectedPlanPeriod
+      $('selectedPeriodLabel').hidden = false
+      showDelegationStep(1, false)
       change.hidden = logout.hidden = changeButton.hidden = true
       sessionActions.append(changeButton, logout)
       sessionActions.hidden = true
@@ -753,12 +862,6 @@
       message.textContent = ''
       if (token) try { await api('/auth/v1/logout', { method: 'POST' }, token) }
       catch (error) { message.textContent = error.message }
-    }
-    $('delegationPeriod').onchange = async () => {
-      selectedPlanPeriod = $('delegationPeriod').value
-      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(selectedPlanPeriod)) return
-      await refreshSelectedPlanFromRemote()
-      setDelegationControls()
     }
     const temporaryPasswordFor = delegation => {
       const input = $('satTempPasswordGeneral'), password = input.value
@@ -894,6 +997,79 @@
       finally { button.disabled = false }
     }
   }
+  function setupDelegationPeriodPicker() {
+    const picker = $('delegationPeriodPicker')
+    const toggle = $('delegationPeriodToggle')
+    const panel = $('delegationPeriodPanel')
+    let browseYear = 2026
+    let loading = false
+    const selected = () => selectedPlanPeriod.split('-').map(Number)
+    const render = () => {
+      const [year, month] = selected()
+      $('delegationPeriodText').textContent = periodLabel(selectedPlanPeriod)
+      $('delegationPeriodPanelTitle').textContent = String(browseYear)
+      $('delegationYearPrev').disabled = loading || browseYear <= 1
+      $('delegationYearNext').disabled = loading || browseYear >= 9999
+      $('delegationPeriodPrev').disabled = loading || (year === 1 && month === 1)
+      $('delegationPeriodNext').disabled = loading || (year === 9999 && month === 12)
+      $('delegationPeriodToday').disabled = loading
+      $('delegationMonths').replaceChildren(...periodMonths.map((name, index) => {
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = 'delegate-month-choice'
+        button.textContent = name
+        button.disabled = loading
+        button.setAttribute('aria-pressed', String(browseYear === year && index + 1 === month))
+        button.onclick = () => void choose(browseYear, index + 1)
+        return button
+      }))
+    }
+    const close = () => { panel.hidden = true; toggle.setAttribute('aria-expanded', 'false') }
+    async function choose(year, month) {
+      if (loading || year < 1 || year > 9999 || month < 1 || month > 12) return
+      const nextPeriod = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`
+      const changed = nextPeriod !== selectedPlanPeriod
+      browseYear = year
+      if (!changed) { render(); close(); toggle.focus(); return }
+      selectedPlanPeriod = nextPeriod
+      $('delegationPeriod').value = selectedPlanPeriod
+      $('selectedPeriodLabel').textContent = `▣  ${periodLabel(selectedPlanPeriod)}`
+      $('confirmReview').checked = false
+      editingActivityId = null; editingSnapshot = null
+      showDelegationStep(1, false)
+      ensureSelectedPlan()
+      renderPlan()
+      render(); close(); toggle.focus()
+      if (!delegationSession) return
+      loading = true; render()
+      $('saveMessage').textContent = `Buscando el plan de ${periodLabel(selectedPlanPeriod)}. Los demás meses se conservan por separado.`
+      try {
+        await refreshSelectedPlanFromRemote()
+        setDelegationControls()
+        $('saveMessage').textContent = plan().remoteId ? 'Se abrió el plan guardado de este mes.' : 'Este mes todavía no tiene un plan guardado. Podés empezar uno nuevo.'
+      } catch (error) {
+        $('saveMessage').textContent = `No se pudo cargar este mes: ${error.message}. Los demás meses siguen guardados.`
+      } finally { loading = false; render() }
+    }
+    const stepMonth = offset => {
+      const [year, month] = selected()
+      const monthIndex = (year - 1) * 12 + month - 1 + offset
+      void choose(Math.floor(monthIndex / 12) + 1, monthIndex % 12 + 1)
+    }
+    $('delegationPeriodPrev').onclick = () => stepMonth(-1)
+    $('delegationPeriodNext').onclick = () => stepMonth(1)
+    $('delegationYearPrev').onclick = () => { if (browseYear > 1) { browseYear -= 1; render() } }
+    $('delegationYearNext').onclick = () => { if (browseYear < 9999) { browseYear += 1; render() } }
+    $('delegationPeriodToday').onclick = () => { const today = new Date(); void choose(today.getFullYear(), today.getMonth() + 1) }
+    toggle.onclick = () => {
+      if (!panel.hidden) { close(); return }
+      browseYear = selected()[0]; render(); panel.hidden = false; toggle.setAttribute('aria-expanded', 'true')
+    }
+    picker.addEventListener('keydown', event => { if (event.key === 'Escape' && !panel.hidden) { close(); toggle.focus() } })
+    document.addEventListener('click', event => { if (!picker.contains(event.target)) close() })
+    $('delegationPeriod').value = selectedPlanPeriod
+    render()
+  }
   function setupAdminPeriodPicker() {
     const picker = $('adminPeriodPicker'), toggle = $('periodToggle'), panel = $('periodPanel')
     let browseYear = 2026
@@ -944,6 +1120,7 @@
   }
   async function showAdmin(token) {
     $('headerDelegationName').textContent = 'Consola DDT'
+    $('selectedPeriodLabel').hidden = false
     $('satAccountsLink').hidden = false
     $('satDelegationAccess').hidden = true
     $('delegateView').hidden = true; $('adminView').hidden = false
@@ -1288,7 +1465,28 @@
     })
     $('addFirst').onclick = addActivity
     $('addActivityTop').onclick = addActivity
-    $('submitPlan').onclick = () => savePlan('ENVIADO')
+    $('step1Continue').onclick = () => {
+      const issues = registrantStepIssues()
+      if (issues.length) { showIssuesInStep(issues, 1); return }
+      showDelegationStep(2)
+    }
+    $('step2Back').onclick = () => showDelegationStep(1)
+    $('step2Continue').onclick = () => {
+      const issues = validatePlan(false)
+      if (issues.length) { showIssuesInStep(issues, 2); return }
+      showDelegationStep(3)
+    }
+    $('step3Back').onclick = () => showDelegationStep(2)
+    $('saveDraftStep1').onclick = saveDraftOnDevice
+    $('saveDraftStep2').onclick = saveDraftOnDevice
+    $('submitPlan').onclick = requestPlanSubmission
+    $('confirmSubmitPlan').onclick = async () => {
+      const button = $('confirmSubmitPlan')
+      button.disabled = true
+      try {
+        if (await savePlan('ENVIADO')) $('submitConfirmDialog').close()
+      } finally { button.disabled = false }
+    }
     $('downloadWord').onclick = event => exportPlan('word', plan(), event.currentTarget)
     $('downloadExcel').onclick = event => exportPlan('excel', plan(), event.currentTarget)
     $('adminAccess').onclick = async () => { const session = getAdminSession(); if (session) await showAdmin(session.accessToken); else $('adminDialog').showModal() }
@@ -1297,7 +1495,8 @@
     $('adminPlanDdt').onclick = openPlanDdt
     $('ddtBack').onclick = () => { $('planDdtView').hidden = true; $('adminDashboard').hidden = false }
     $('downloadDdtWord').onclick = event => downloadDdtPlan(event.currentTarget)
-    $('adminLogout').onclick = () => { adminTemporaryPasswords.clear(); sessionStorage.removeItem(ADMIN_SESSION_KEY); $('adminView').hidden = true; $('delegateView').hidden = true; $('satAccountsLink').hidden = true; $('satAccounts').hidden = true; $('satAccountsMessage').textContent = ''; $('satDelegationAccess').hidden = false; $('headerDelegationName').textContent = 'Sin sesión'; toast('Sesión administrativa cerrada.') }
+    $('adminLogout').onclick = () => { adminTemporaryPasswords.clear(); sessionStorage.removeItem(ADMIN_SESSION_KEY); $('adminView').hidden = true; $('delegateView').hidden = true; $('satAccountsLink').hidden = true; $('satAccounts').hidden = true; $('satAccountsMessage').textContent = ''; $('satDelegationAccess').hidden = false; $('headerDelegationName').textContent = 'Sin sesión'; $('selectedPeriodLabel').hidden = false; toast('Sesión administrativa cerrada.') }
+    setupDelegationPeriodPicker()
     setupAdminPeriodPicker()
     setupDelegationAccess()
     $('adminDownloadComplete').onclick = event => exportPlan('wordComplete', adminRows, event.currentTarget)

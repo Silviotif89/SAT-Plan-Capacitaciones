@@ -276,6 +276,84 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important}
 @media(max-width:520px){.hero-inner{grid-template-columns:44px minmax(0,1fr)}.brand div{display:none}.header-title{grid-row:2;grid-column:1/-1}.header-actions{grid-row:3}.period-label{font-size:.72rem}.header-delegation{max-width:120px}.admin-access{font-size:.72rem}.shell{padding:16px 12px 25px}.identity-grid,.activity-grid,.admin-filters,.admin-contact{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.metrics article{min-height:86px;padding:11px;gap:8px}.metrics article>span{width:35px;height:35px;font-size:.95rem}.metrics strong{font-size:1.2rem}.admin-main-actions{display:grid;grid-template-columns:1fr}.admin-main-actions .button,.admin-session-actions .button,.admin-filters .button{width:100%;min-height:44px}.admin-session-actions{display:grid;grid-template-columns:1fr 1fr}.admin-card summary{grid-template-columns:1fr}.admin-toolbar{display:flex;flex-wrap:wrap}.admin-toolbar .button{min-height:44px}.admin-activity{grid-template-columns:1fr}.sat-account-row .button{width:100%}.download-actions{grid-template-columns:1fr}.download-actions .button{width:100%}.activities-table tbody tr{grid-template-columns:1fr}.activities-table td{grid-template-columns:minmax(94px,.7fr) minmax(0,1.3fr)}}
 @media(max-width:360px){.header-actions{display:grid;grid-template-columns:1fr 1fr}.header-actions .period-label{grid-column:1/-1}.header-actions .admin-access{grid-column:2}.header-actions .header-delegation{grid-column:1;grid-row:2}.metrics{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
-#delegationPeriod { display: block; min-height: 2.5rem; margin-top: .28rem; padding: .4rem .55rem; color: #123b7a; font: inherit; font-size: .82rem; font-weight: 700; background: #fff; border: 1px solid #cedbef; border-radius: .65rem; }
 @media(max-width:760px){.delegate-session-actions{justify-content:flex-start}.delegate-session-actions .button{min-height:2.5rem}}
+
+/* Registro guiado para uso sencillo en computadora y celular */
+#delegateView .delegate-step-progress{display:flex;align-items:center;gap:10px;list-style:none;margin:4px 0 10px;padding:0;max-width:850px}
+#delegateView .delegate-step-progress li{display:flex;align-items:center;gap:8px;flex:1;min-width:0;color:#60748e;font-size:.9rem;line-height:1.2}
+#delegateView .delegate-step-progress li>span{display:grid;place-items:center;width:36px;height:36px;flex:none;border:2px solid #cbd8e8;border-radius:50%;background:#fff;color:#455e7d;font-size:1rem;font-weight:850}
+#delegateView .delegate-step-progress li.is-current{color:#123b7a;font-weight:800}
+#delegateView .delegate-step-progress li.is-current>span{border-color:#0969c8;background:#0969c8;color:#fff}
+#delegateView .delegate-step-progress li.is-complete>span{border-color:#168454;background:#e8f7ef;color:#12603d}
+#delegateView .save-state{min-height:24px;margin:0 0 14px;color:#3b597c;font-size:.91rem;line-height:1.45}
+#delegateView .delegate-session-actions{align-items:flex-end;gap:10px;max-width:100%}
+#delegateView .delegate-period-picker{position:relative;width:min(100%,385px);margin:0}
+#delegateView .delegate-period-picker>.period-label{display:block;margin:0 0 6px;color:#526685;font-size:.85rem;font-weight:800}
+#delegateView .delegate-period-controls{display:grid;grid-template-columns:minmax(82px,1fr) minmax(150px,1.65fr) minmax(82px,1fr);gap:7px}
+#delegateView .delegate-period-controls>button{display:flex;justify-content:center;align-items:center;gap:6px;min-width:0;min-height:54px;padding:7px 9px;border:1px solid #cfdaea;border-radius:12px;background:#fff;color:#17345a;font:inherit;font-size:.82rem;font-weight:750;line-height:1.2;cursor:pointer}
+#delegateView .delegate-period-controls>button:hover{border-color:#0969c8;background:#f4f9ff}
+#delegateView .delegate-period-controls>button:focus-visible,#delegateView .delegate-period-year-controls button:focus-visible,#delegateView .delegate-month-choice:focus-visible,#delegateView .delegate-period-today:focus-visible{outline:3px solid #ffbb37;outline-offset:2px}
+#delegateView .delegate-period-controls>button:disabled{opacity:.55;cursor:not-allowed}
+#delegateView #delegationPeriodToggle{display:grid;grid-template-columns:auto 1fr;justify-items:start;gap:2px 9px;padding:8px 12px;border-color:#b9cce4;background:#f8fbff}
+#delegateView #delegationPeriodToggle .period-icon{grid-row:1/3;font-size:1.3rem}
+#delegateView #delegationPeriodToggle strong{align-self:end;color:#123b7a;font-size:1rem}
+#delegateView #delegationPeriodToggle span:last-child{align-self:start;color:#536b87;font-size:.73rem;font-weight:600}
+#delegateView .delegate-period-panel{position:absolute;top:calc(100% + 8px);right:0;z-index:15;width:min(420px,calc(100vw - 32px));padding:14px;border:1px solid #d4e0ee;border-radius:15px;background:#fff;box-shadow:0 14px 32px rgba(18,49,89,.17)}
+#delegateView .delegate-period-year-controls{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px}
+#delegateView .delegate-period-year-controls h3{margin:0;color:#123b7a;font-size:1.15rem;text-align:center}
+#delegateView .delegate-period-year-controls button,#delegateView .delegate-period-today{min-height:46px;padding:8px 10px;border:1px solid #d4dfed;border-radius:10px;background:#f7f9fc;color:#17345a;font:inherit;font-size:.82rem;font-weight:750;cursor:pointer}
+#delegateView .delegate-period-year-controls button:last-child{text-align:right}
+#delegateView .delegate-period-year-controls button:disabled,#delegateView .delegate-period-today:disabled{opacity:.55;cursor:not-allowed}
+#delegateView .delegate-period-months{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0}
+#delegateView .delegate-month-choice{min-width:0;min-height:49px;padding:8px 4px;border:1px solid #d8e2ee;border-radius:10px;background:#f8fafc;color:#304d70;font:inherit;font-size:.9rem;font-weight:750;cursor:pointer}
+#delegateView .delegate-month-choice:hover{border-color:#0969c8;background:#edf6ff}
+#delegateView .delegate-month-choice[aria-pressed="true"]{border-color:#0969c8;background:#0969c8;color:#fff}
+#delegateView .delegate-period-today{width:100%;min-height:48px;border-color:#f0c2de;background:#fff7fb;color:#8e145f}
+#delegateView .delegate-account-actions{display:flex;flex-wrap:wrap;gap:7px}
+#delegateView .delegation-step{min-width:0}
+#delegateView .identity-panel .panel-title{align-items:flex-start}
+#delegateView .identity-panel .panel-title>div::before,#delegateView .identity-panel .panel-title>div::after{display:none}
+#delegateView .identity-panel .panel-title>div{grid-template-columns:minmax(0,1fr);padding-left:0}
+#delegateView .step-heading{display:flex;align-items:flex-start;gap:13px;min-width:0}
+#delegateView .step-number{display:grid;place-items:center;width:42px;height:42px;flex:none;border-radius:50%;background:#eaf4ff;color:#0969c8;font-size:1.12rem;font-weight:900}
+#delegateView .step-caption{display:block;margin:0 0 4px;color:#527095;font-size:.77rem;font-weight:850;letter-spacing:.04em}
+#delegateView .step-heading h2{margin:0 0 5px;font-size:clamp(1.2rem,1.8vw,1.55rem);line-height:1.25}
+#delegateView .step-heading p{max-width:780px;margin:0;color:#536b87;font-size:.95rem;line-height:1.55}
+#delegateView .identity-field>span,#delegateView .identity-field label{font-size:.91rem}
+#delegateView .identity-grid{gap:16px}
+#delegateView .identity-grid input,#delegateView .identity-grid select,#delegateView .activity-grid input,#delegateView .activity-grid select,#delegateView .activity-grid textarea{min-height:50px;font-size:.94rem}
+#delegateView .guidance{margin:12px 0 16px;padding:13px 15px;border:1px solid #d5e5f5;border-radius:11px;background:#f5faff;color:#294b71;font-size:.93rem;line-height:1.55}
+#delegateView .metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+#delegateView .metric-delegation{display:none}
+#delegateView .metrics article{min-width:0;min-height:88px}
+#delegateView .metrics small{font-size:.86rem;line-height:1.35}
+#delegateView .metrics strong{font-size:1.3rem;overflow-wrap:anywhere}
+#delegateView .step-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin:15px 0 22px}
+#delegateView .step-actions-end{justify-content:space-between}
+#delegateView .step-actions .button{min-height:52px;padding:11px 17px;font-size:.92rem}
+#delegateView .step-save-draft{background:#fff;color:#23456f;border:1px solid #cbd8e8}
+#delegateView .plan-review-summary{margin:12px 0;padding:15px;border-radius:11px;background:#f3f8fe;color:#244768;font-size:.97rem;line-height:1.6}
+#delegateView .plan-review-activities{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+#delegateView .plan-review-activities li{padding:12px 14px;border:1px solid #dce6f2;border-radius:10px;background:#fff;color:#284967;font-size:.9rem;line-height:1.55;overflow-wrap:anywhere}
+#delegateView .plan-review-activities li.review-cancelled{border-color:#f0d4d8;background:#fff8f8;color:#75414c}
+#delegateView .confirmation{max-width:none;align-items:flex-start;font-size:.93rem;line-height:1.5}
+#delegateView .confirmation input{width:22px;height:22px;min-width:22px;min-height:22px;margin-top:0}
+#delegateView .submit-panel{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+#delegateView .submit-panel .step-actions{justify-content:space-between;margin:4px 0 0}
+#delegateView .field-error{font-size:.82rem;line-height:1.45}
+#delegateView label.field-invalid{font-size:.91rem}
+#delegateView .download-panel{align-items:flex-start;margin:0 0 24px;padding:18px}
+#delegateView .download-panel h2{font-size:1.15rem;line-height:1.35}
+#delegateView .download-panel p{font-size:.92rem;line-height:1.5}
+#delegateView .download-actions .button{min-height:52px;font-size:.9rem}
+.submit-confirm-dialog{width:min(560px,calc(100% - 28px));padding:clamp(20px,4vw,30px);border:1px solid #d4dfed;border-radius:16px;box-shadow:0 18px 55px rgba(13,42,76,.25)}
+.submit-confirm-dialog::backdrop{background:rgba(12,34,65,.48)}
+.submit-confirm-dialog form{display:grid;gap:12px}
+.submit-confirm-dialog h2{margin:0;color:#123b7a;font-size:1.35rem;line-height:1.3}
+.submit-confirm-dialog p{margin:0;color:#425d7d;font-size:.97rem;line-height:1.6}
+.submit-confirm-dialog .dialog-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:8px}
+.submit-confirm-dialog .button{min-height:50px}
+@media(max-width:900px){#delegateView .delegate-session-actions{width:100%;justify-content:space-between}#delegateView .delegate-period-picker{width:min(100%,430px)}#delegateView .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){#delegateView .page-heading{gap:14px}#delegateView .delegate-session-actions{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch}#delegateView .delegate-period-picker{width:100%}#delegateView .delegate-account-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}#delegateView .delegate-account-actions .button{min-height:48px;padding:9px 7px;font-size:.82rem}#delegateView .delegate-step-progress{gap:5px}#delegateView .delegate-step-progress li{flex-direction:column;align-items:flex-start;gap:4px;font-size:.78rem}#delegateView .delegate-step-progress li>span{width:34px;height:34px}#delegateView .step-heading{gap:10px}#delegateView .step-number{width:38px;height:38px}#delegateView .step-heading p{font-size:.92rem}#delegateView .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}#delegateView .metrics article{min-height:78px;padding:10px}#delegateView .metrics strong{font-size:1.15rem}#delegateView .step-actions,#delegateView .step-actions-end{display:grid;grid-template-columns:1fr;justify-content:stretch}#delegateView .step-actions .button{width:100%;min-height:54px}#delegateView .step-save-draft{grid-row:2}#delegateView .submit-panel .step-actions #step3Back{grid-row:2}#delegateView .delegate-period-panel{right:0;left:0;width:100%}#delegateView .delegate-period-controls{grid-template-columns:minmax(72px,.8fr) minmax(135px,1.4fr) minmax(72px,.8fr);gap:5px}#delegateView .delegate-period-controls>button{min-height:54px;padding:7px 4px;font-size:.77rem}#delegateView .delegate-period-controls>button>span{overflow-wrap:anywhere}#delegateView .delegate-month-choice{min-height:51px;font-size:.87rem}#delegateView .download-panel{padding:15px}#delegateView .download-actions{width:100%}.submit-confirm-dialog .dialog-actions{display:grid;grid-template-columns:1fr}.submit-confirm-dialog .dialog-actions .button{width:100%;min-height:52px}}
+@media(max-width:370px){#delegateView .delegate-period-controls{grid-template-columns:minmax(64px,.75fr) minmax(125px,1.5fr) minmax(64px,.75fr)}#delegateView .delegate-period-controls>button{font-size:.72rem}#delegateView .delegate-month-choice{font-size:.81rem}}
 [hidden]{display:none!important}

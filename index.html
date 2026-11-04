@@ -53,9 +53,35 @@
       <p id="delegationReadOnly" role="status" hidden>Este plan fue enviado y está disponible únicamente para consulta y descarga. Para modificarlo, solicite habilitación a la DDT.</p>
     </section>
     <section id="delegateView" hidden>
-      <div class="page-heading" id="pageHeading"><div><h1>Registro de capacitaciones por delegación</h1><p>Completá la información, revisala y guardala. Los datos quedan registrados en línea para seguimiento de la DDT.</p></div><div class="delegate-session-actions" id="satDelegationSessionActions" hidden><label id="delegationPeriodWrap">Mes y año <input id="delegationPeriod" type="month" min="1900-01" max="9999-12" value="2026-11"></label><button id="satChangePassword" class="button ghost" type="button" hidden>Cambiar contraseña</button><button id="satDelegationLogout" class="button ghost" type="button" hidden>Cerrar sesión</button></div></div>
+      <div class="page-heading" id="pageHeading">
+        <div class="page-heading-copy"><h1>Registro de capacitaciones</h1><p>Completá el plan de tu delegación siguiendo estos tres pasos. Podés guardar cada capacitación y continuar después.</p></div>
+        <div class="delegate-session-actions" id="satDelegationSessionActions" hidden>
+          <div class="delegate-period-picker" id="delegationPeriodPicker">
+            <span class="period-label" id="delegationPeriodLabel">Mes del plan</span>
+            <div class="delegate-period-controls">
+              <button type="button" id="delegationPeriodPrev" aria-label="Mes anterior"><span aria-hidden="true">‹</span><span>Mes anterior</span></button>
+              <button type="button" id="delegationPeriodToggle" aria-expanded="false" aria-controls="delegationPeriodPanel"><span aria-hidden="true" class="period-icon">▦</span><strong id="delegationPeriodText">Noviembre 2026</strong><span>Elegir otro mes</span></button>
+              <button type="button" id="delegationPeriodNext" aria-label="Mes siguiente"><span>Mes siguiente</span><span aria-hidden="true">›</span></button>
+            </div>
+            <div id="delegationPeriodPanel" class="delegate-period-panel" role="dialog" aria-labelledby="delegationPeriodPanelTitle" hidden>
+              <div class="delegate-period-year-controls"><button type="button" id="delegationYearPrev">Año anterior</button><h3 id="delegationPeriodPanelTitle" aria-live="polite">2026</h3><button type="button" id="delegationYearNext">Año siguiente</button></div>
+              <div id="delegationMonths" class="delegate-period-months"></div>
+              <button type="button" id="delegationPeriodToday" class="delegate-period-today">Ir al mes actual</button>
+            </div>
+            <input id="delegationPeriod" type="hidden" value="2026-11">
+          </div>
+          <div class="delegate-account-actions"><button id="satChangePassword" class="button ghost" type="button" hidden>Cambiar contraseña</button><button id="satDelegationLogout" class="button ghost" type="button" hidden>Cerrar sesión</button></div>
+        </div>
+      </div>
+      <ol class="delegate-step-progress" aria-label="Pasos para completar el plan">
+        <li id="stepProgress1" aria-current="step"><span>1</span><strong>Datos</strong></li>
+        <li id="stepProgress2"><span>2</span><strong>Capacitaciones</strong></li>
+        <li id="stepProgress3"><span>3</span><strong>Revisar y enviar</strong></li>
+      </ol>
+      <p id="saveMessage" class="save-state" role="status" aria-live="polite">Los cambios se guardan en este dispositivo mientras completás el plan.</p>
+      <div id="delegationStep1" class="delegation-step">
       <section class="panel identity-panel" id="identification">
-        <div class="panel-title"><div><span class="eyebrow dark">Identificación territorial</span><h2>Delegación y persona que registra</h2><p>Estos datos permiten saber quién completó el plan y contactarle si hace falta una aclaración.</p></div><span class="status-pill" id="planStatus">Borrador local</span></div>
+        <div class="panel-title"><div class="step-heading"><span class="step-number" aria-hidden="true">1</span><div><span class="step-caption">PASO 1 DE 3</span><h2>Datos de quien registra</h2><p>Escribí los datos de la persona responsable del plan. Los campos con * son necesarios.</p></div></div><span class="status-pill" id="planStatus">Borrador</span></div>
         <div class="identity-grid">
           <label class="identity-field field-region"><span>Región <b class="required-mark">*</b></span><select id="region"></select></label>
           <label class="identity-field field-delegation"><span>Delegación <b class="required-mark">*</b></span><select id="delegation"></select></label>
@@ -71,26 +97,37 @@
         <article class="cancelled-metric"><span>⛔</span><div><small>Canceladas</small><strong id="cancelledCount">0</strong></div></article>
         <article class="metric-projection"><span>♟</span><div><small>Proyección total</small><strong id="participantCount">0</strong></div></article>
         <article class="metric-delegation"><span>⌖</span><div><small>Delegación</small><strong id="delegationMetric">—</strong></div></article>
-        <article class="metric-saved"><span>◷</span><div><small>Último guardado</small><strong id="lastSaved">Pendiente</strong></div></article>
+        <article class="metric-saved"><span>◷</span><div><small>Último cambio en este dispositivo</small><strong id="lastSaved">Pendiente</strong></div></article>
       </section>
-
+      <div class="step-actions step-actions-end"><button class="button secondary step-save-draft" id="saveDraftStep1" type="button">Guardar borrador en este dispositivo</button><button class="button primary" id="step1Continue" type="button">Continuar a capacitaciones</button></div>
+      </div>
+      <div id="delegationStep2" class="delegation-step" hidden>
       <section class="panel plan-panel">
-        <div class="panel-title plan-heading"><div><span class="eyebrow dark">Programación mensual</span><h2 id="activitiesHeading">Capacitaciones</h2><p>Una capacitación de varios días se registra una sola vez, indicando las fechas adicionales.</p></div><button class="button add-activity" id="addActivityTop" type="button">＋ Agregar capacitación</button></div>
-        <div class="guidance" id="help"><b>Información necesaria:</b> tema, fecha, horario, municipio, lugar, modalidad, quién imparte, quiénes participan, responsable y proyección. En actividades de varios días, agregá las demás fechas sin duplicar la capacitación.</div>
+        <div class="panel-title plan-heading"><div class="step-heading"><span class="step-number" aria-hidden="true">2</span><div><span class="step-caption">PASO 2 DE 3</span><h2 id="activitiesHeading">Capacitaciones</h2><p>Agregá las capacitaciones del mes. Cada una se guarda antes de continuar con la siguiente.</p></div></div><button class="button add-activity" id="addActivityTop" type="button">＋ Agregar capacitación</button></div>
+        <div class="guidance" id="help"><b>Cómo empezar:</b> Tocá “Agregar capacitación”, completá los campos con * y presioná “Guardar actividad”. Si dura varios días, registrala una sola vez y anotá las otras fechas.</div>
         <div id="activities"></div>
-        <div class="empty" id="emptyState"><span>🗓️</span><h3>El plan está listo para comenzar</h3><p>Agregá la primera capacitación de tu delegación para noviembre de 2026.</p><button class="button secondary" type="button" id="addFirst">＋ Agregar primera capacitación</button></div>
+        <div class="empty" id="emptyState"><span aria-hidden="true">🗓️</span><h3>Aún no hay capacitaciones para este mes</h3><p>Cuando estés lista, agregá la primera capacitación para el período seleccionado.</p><button class="button secondary" type="button" id="addFirst">Agregar primera capacitación</button></div>
       </section>
-
+      <div class="step-actions"><button class="button ghost" id="step2Back" type="button">Volver a datos</button><button class="button secondary step-save-draft" id="saveDraftStep2" type="button">Guardar borrador en este dispositivo</button><button class="button primary" id="step2Continue" type="button">Continuar a revisar</button></div>
+      </div>
+      <div id="delegationStep3" class="delegation-step" hidden>
       <section class="submit-panel">
-        <label class="confirmation"><input id="confirmReview" type="checkbox"><span>Confirmo que revisé fechas, responsables, instituciones y proyección de participantes.</span></label>
-        <div><button class="button primary" id="submitPlan" type="button">Enviar plan a la DDT</button></div>
-        <p id="saveMessage" aria-live="polite">Revisá los datos y presioná “Enviar plan a la DDT” cuando esté listo.</p>
+        <div class="step-heading submit-step-heading"><span class="step-number" aria-hidden="true">3</span><div><span class="step-caption">PASO 3 DE 3</span><h2 id="submitStepTitle">Revisar y enviar</h2><p id="submitStepHelp">Revisá la información. La DDT (Dirección de Desarrollo Turístico) recibirá el plan cuando lo envíes.</p></div></div>
+        <div class="plan-review-summary" id="planReviewSummary" role="status" aria-live="polite">Revisá los datos principales antes de enviar.</div>
+        <ol class="plan-review-activities" id="planReviewActivities" aria-label="Capacitaciones incluidas en el plan"></ol>
+        <label class="confirmation"><input id="confirmReview" type="checkbox"><span>Ya revisé las fechas, los lugares y la cantidad de participantes.</span></label>
+        <div class="step-actions"><button class="button ghost" id="step3Back" type="button">Volver a capacitaciones</button><button class="button primary" id="submitPlan" type="button">Enviar plan a la DDT</button></div>
       </section>
-      <section class="panel download-panel" id="downloadPanel" hidden aria-live="polite">
-        <div><span class="eyebrow dark">Plan confirmado</span><h2>Tu plan fue enviado a la Dirección de Desarrollo Turístico</h2><p>Podés descargar los documentos del plan registrado. Se generan con la información confirmada para tu delegación.</p></div>
-        <div class="download-actions"><button class="button word" id="downloadWord" type="button">▣ Descargar plan mensual en Word</button><button class="button excel" id="downloadExcel" type="button">▦ Descargar plan mensual en Excel</button></div>
+      <section class="panel download-panel" id="downloadPanel" aria-live="polite">
+        <div><span class="eyebrow dark" id="downloadEyebrow">Descargas del plan</span><h2 id="downloadHeading">Podrás descargar el plan después de enviarlo</h2><p id="downloadHelp">Las descargas estarán disponibles cuando envíes el plan a la DDT.</p></div>
+        <div class="download-actions"><button class="button word" id="downloadWord" type="button" disabled aria-describedby="downloadHelp">Descargar plan mensual en Word</button><button class="button excel" id="downloadExcel" type="button" disabled aria-describedby="downloadHelp">Descargar plan mensual en Excel</button></div>
       </section>
+      </div>
     </section>
+
+    <dialog id="submitConfirmDialog" class="submit-confirm-dialog" aria-labelledby="submitConfirmTitle">
+      <form method="dialog"><h2 id="submitConfirmTitle">¿Enviar este plan a la DDT?</h2><p id="submitConfirmSummary"></p><p>Después del envío, la Dirección de Desarrollo Turístico recibirá este plan. Podrás descargarlo cuando el sistema confirme que fue recibido.</p><div class="dialog-actions"><button class="button ghost" value="cancel">Volver a revisar</button><button class="button primary" id="confirmSubmitPlan" type="button">Sí, enviar el plan</button></div></form>
+    </dialog>
 
     <section id="adminView" class="admin-view" hidden>
       <div id="adminDashboard">
