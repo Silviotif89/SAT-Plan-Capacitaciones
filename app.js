@@ -218,7 +218,7 @@
       const control = $(id)
       control.disabled = readonly || id === 'region' || id === 'delegation'
     }
-    document.querySelectorAll('#activities input,#activities select,#activities textarea,[data-save-activity]').forEach(control => { control.disabled = readonly })
+    document.querySelectorAll('#activities input,#activities select,#activities textarea,#activities button,[data-save-activity]').forEach(control => { control.disabled = readonly })
     $('region').value = regionFor(delegationAccount.delegation)
     $('delegation').value = delegationAccount.delegation
     $('headerDelegationName').textContent = delegationAccount.delegation
@@ -256,6 +256,7 @@
     return `${String(hour % 12 || 12).padStart(2, '0')}:${minuteText} ${hour < 12 ? 'a. m.' : 'p. m.'}`
   }
   function renderActivityTable(root, items, current) {
+    const canManage = !delegationSession || delegationCanEdit
     const visibleItems = items.filter(item => item.id !== editingActivityId)
     if (!visibleItems.length) return
     const wrapper = document.createElement('div'); wrapper.className = 'activities-table-wrap'
@@ -270,14 +271,14 @@
       const values = [String(index + 1), item.topic || 'Sin tema', formatActivityDate(item.date), `${formatActivityTime(item.startTime)} – ${formatActivityTime(item.endTime)}`, item.municipality || '—', item.location || '—', item.trainingProvider || '—', Number(item.projectedParticipants || 0).toLocaleString('es-NI'), cancelled ? 'Cancelada' : 'Registrada']
       values.forEach((value, cellIndex) => { const cell = document.createElement('td'); cell.dataset.label = headers[cellIndex]; if (cellIndex === 8) { const badge = text('span', value, cancelled ? 'cancelled-badge' : 'saved-pill'); cell.append(badge) } else if (cellIndex === 1 && cancelled) { cell.append(text('span', value), text('small', `Motivo: ${item.cancellationReason || 'No indicado'} · ${formatDateTime(item.cancelledAt)}`, 'cancelled-table-reason')) } else cell.textContent = value; row.append(cell) })
       const actions = document.createElement('td'); actions.dataset.label = 'Acciones'; actions.className = 'table-actions'
-      if (!cancelled) {
+      if (!cancelled && canManage) {
         const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'table-action edit'; edit.append(icon('M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z')); edit.title = `Editar ${item.topic || 'capacitación'}`; edit.setAttribute('aria-label', edit.title)
         edit.onclick = () => { editingActivityId = item.id; editingSnapshot = clone(item); renderActivities() }
         const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'table-action delete'; remove.append(icon('M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6 M10 11v5 M14 11v5')); remove.title = `Eliminar ${item.topic || 'capacitación'}`; remove.setAttribute('aria-label', remove.title)
         remove.onclick = () => { if (confirm('¿Eliminar esta capacitación del plan?')) { const itemIndex = current.activities.findIndex(activity => activity.id === item.id); if (itemIndex >= 0) current.activities.splice(itemIndex, 1); saveLocalAndRender(); renderActivities() } }
         const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'table-action cancel'; cancel.textContent = '×'; cancel.title = `Cancelar ${item.topic || 'capacitación'}`; cancel.setAttribute('aria-label', cancel.title); cancel.disabled = !current.remoteId; cancel.onclick = () => openCancellation(current, item, 'delegate')
         actions.append(edit, remove, cancel)
-      } else actions.textContent = '—'
+      } else actions.textContent = cancelled ? '—' : 'Solo consulta'
       row.append(actions); tbody.append(row)
     })
     table.append(thead, tbody); wrapper.append(table); root.append(wrapper)
