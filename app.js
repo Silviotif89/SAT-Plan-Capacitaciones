@@ -650,6 +650,7 @@
     let session = null
     setOptions($('satDelegationName'), DELEGATIONS, '')
     $('satDelegationName').insertBefore(new Option('Seleccioná tu delegación', ''), $('satDelegationName').firstChild)
+    $('satDelegationName').add(new Option('Prueba (reflejo de León)', 'Prueba'))
     $('satDelegationName').value = ''
     const rpc = (name, token, body = {}) => api('/rest/v1/rpc/' + name, {
       method: 'POST', body: JSON.stringify(body)
@@ -765,7 +766,8 @@
       try {
         const rows = await rpc('sat_admin_accounts', admin.accessToken)
         for (const row of rows) {
-          const line = text('div', `Usuario: ${row.delegation} · ${row.enabled ? 'Habilitada' : 'Deshabilitada'} · Último acceso: ${formatDateTime(row.last_sign_in_at)}`, 'sat-account-row')
+          const accountLabel = row.delegation === 'Prueba' ? 'Prueba (reflejo de León)' : row.delegation
+          const line = text('div', `Usuario: ${accountLabel} · ${row.enabled ? 'Habilitada' : 'Deshabilitada'} · Último acceso: ${formatDateTime(row.last_sign_in_at)}`, 'sat-account-row')
           const temporaryPassword = adminTemporaryPasswords.get(row.delegation)
           if (temporaryPassword) {
             const credential = text('span', 'Contraseña temporal: ', 'sat-account-password')
@@ -802,6 +804,22 @@
               await $('satAccountsLink').onclick()
             } catch (error) { status.textContent = error.message }
           }))
+          if (row.delegation === 'Prueba') line.append(adminButton('Eliminar prueba', async event => {
+            const button = event.currentTarget
+            if (!window.confirm('Se eliminará únicamente la cuenta Prueba y su copia del plan de León. El plan original y las 17 delegaciones oficiales no se modificarán. ¿Continuar?')) return
+            button.disabled = true
+            try {
+              await api('/functions/v1/sat-accounts', {
+                method: 'POST', body: JSON.stringify({ delegation: 'Prueba', action: 'delete-test' })
+              }, admin.accessToken)
+              adminTemporaryPasswords.delete('Prueba')
+              await $('satAccountsLink').onclick()
+              status.textContent = 'La cuenta de prueba y su copia de León fueron eliminadas. Los datos oficiales permanecen intactos.'
+            } catch (error) {
+              status.textContent = error.message
+              button.disabled = false
+            }
+          }, 'button ghost admin-danger'))
           accounts.append(line)
         }
       } catch (error) { status.textContent = error.message }
@@ -815,7 +833,7 @@
       try {
         const accounts = await rpc('sat_admin_accounts', admin.accessToken)
         const created = [], failures = []
-        const pending = accounts.filter(item => !item.provisioned)
+        const pending = accounts.filter(item => item.delegation !== 'Prueba' && !item.provisioned)
         if (pending.length) pending.forEach(account => temporaryPasswordFor(account.delegation))
         for (const account of pending) {
           try {
@@ -833,6 +851,29 @@
         if (created.length) clearTemporaryPasswords()
         await $('satAccountsLink').onclick()
         status.textContent = summary
+      } catch (error) { status.textContent = error.message }
+      finally { button.disabled = false }
+    }
+    $('satCreateTestAccount').onclick = async event => {
+      const admin = getAdminSession()
+      if (!admin) return
+      const button = event.currentTarget, status = $('satAccountsMessage')
+      button.disabled = true
+      try {
+        const temporaryPassword = temporaryPasswordFor('Prueba')
+        const rows = await rpc('sat_admin_accounts', admin.accessToken)
+        const testAccount = rows.find(row => row.delegation === 'Prueba')
+        if (!testAccount) throw new Error('La copia de León aún no está preparada en Supabase.')
+        if (testAccount.provisioned) throw new Error('La cuenta de prueba ya existe. Usá “Restablecer contraseña” en su fila.')
+        if (!window.confirm('Se creará la cuenta aislada Prueba con una copia editable de las actividades de León. ¿Continuar?')) return
+        const created = await api('/functions/v1/sat-accounts', {
+          method: 'POST', body: JSON.stringify({ delegation: 'Prueba', action: 'create', temporaryPassword })
+        }, admin.accessToken)
+        if (created.verified !== true || created.checks?.isolation !== true) throw new Error('La cuenta no superó la verificación de aislamiento.')
+        $('satTempPasswordGeneral').value = ''
+        adminTemporaryPasswords.set('Prueba', created.temporaryPassword)
+        await $('satAccountsLink').onclick()
+        status.textContent = 'Cuenta Prueba creada. Ingresá como “Prueba (reflejo de León)” con la contraseña temporal elegida; el sistema pedirá cambiarla al primer acceso.'
       } catch (error) { status.textContent = error.message }
       finally { button.disabled = false }
     }
