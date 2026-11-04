@@ -743,20 +743,17 @@
       setDelegationControls()
     }
     const temporaryPasswordFor = delegation => {
-      const id = delegation === 'RACCN' ? 'satTempPasswordRaccn'
-        : delegation === 'RACCS' ? 'satTempPasswordRaccs' : 'satTempPasswordGeneral'
-      const input = $(id), password = input.value
-      if (password.length < 8 || password.length > 72 || !/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?: [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*\*\d{4}$/.test(password)) {
+      const input = $('satTempPasswordGeneral'), password = input.value
+      const match = password.match(/^([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?: [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*)\*(\d{4})$/)
+      if (password.length < 8 || password.length > 72 || !match) {
         input.focus()
-        throw new Error('Ingresá para ' + delegation + ' una contraseña temporal con formato nombre*año (4 dígitos).')
+        throw new Error('Ingresá una contraseña temporal con formato nombre*año (4 dígitos).')
       }
+      if (delegation === 'RACCN') return `RACCN*${match[2]}`
+      if (delegation === 'RACCS') return `RACCS*${match[2]}`
       return password
     }
-    const clearTemporaryPasswords = () => {
-      $('satTempPasswordGeneral').value = ''
-      $('satTempPasswordRaccn').value = ''
-      $('satTempPasswordRaccs').value = ''
-    }
+    const clearTemporaryPasswords = () => { $('satTempPasswordGeneral').value = '' }
     $('satAccountsLink').onclick = async keepTemporaryCredentials => {
       const admin = getAdminSession()
       if (!admin) return
@@ -781,7 +778,7 @@
               const created = await api('/functions/v1/sat-accounts', {
                 method: 'POST', body: JSON.stringify({ delegation: row.delegation, action: row.provisioned ? 'reset' : 'create', temporaryPassword })
               }, admin.accessToken)
-              $(row.delegation === 'RACCN' ? 'satTempPasswordRaccn' : row.delegation === 'RACCS' ? 'satTempPasswordRaccs' : 'satTempPasswordGeneral').value = ''
+              $('satTempPasswordGeneral').value = ''
               await $('satAccountsLink').onclick()
               const verification = created.checks?.isolation
                 ? 'Inicio, cambio y aislamiento probados. '
