@@ -184,6 +184,10 @@ input:focus,select:focus,textarea:focus{border-color:#1683d8;box-shadow:0 0 0 3p
 
 .sat-access { max-width: 52rem; margin: 1rem 0; padding: 1.25rem; background: white; border: 1px solid #dce6f2; border-radius: 1rem; }
 .sat-access label { display: block; margin: .65rem 0; }
+.sat-temp-passwords { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .7rem; margin: 1rem 0 .3rem; }
+.sat-temp-passwords label { margin: 0; color: #23456f; font-size: .82rem; font-weight: 700; }
+.sat-temp-passwords input { display: block; width: 100%; min-height: 2.65rem; margin-top: .35rem; padding: .55rem .7rem; color: #123b7a; font: inherit; border: 1px solid #cedbef; border-radius: .65rem; }
+.sat-temp-password-note { color: #526685; font-size: .8rem; }
 .sat-access details, .sat-account-row { padding: .65rem; border-bottom: 1px solid #dce6f2; }
 .sat-access summary { cursor: pointer; font-weight: 700; }
 .sat-account-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem; }

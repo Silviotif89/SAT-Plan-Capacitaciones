@@ -86,7 +86,7 @@ async function verifyNewAccount(
     }
   }
 
-  const temporaryPassword = "Sat!" + crypto.randomUUID() + "9";
+  const temporaryPassword = initialPassword;
   const prepareReset = await adminClient.rpc("sat_service_prepare_reset", {
     target: delegation,
   });
@@ -163,15 +163,20 @@ Deno.serve(async (request) => {
       return respond(request, { error: "Acceso denegado" }, 403);
     }
 
-    let body: { delegation?: unknown; action?: unknown };
+    let body: { delegation?: unknown; action?: unknown; temporaryPassword?: unknown };
     try {
       body = await request.json();
     } catch {
       return respond(request, { error: "Solicitud inválida" }, 400);
     }
-    const { delegation, action = "create" } = body;
+    const { delegation, action = "create", temporaryPassword: requestedPassword } = body;
     if (typeof delegation !== "string" || !delegation.trim() || delegation.length > 100) {
       return respond(request, { error: "Delegación inválida" }, 400);
+    }
+    if (requestedPassword !== undefined &&
+      (typeof requestedPassword !== "string" || requestedPassword.length < 8 || requestedPassword.length > 72 ||
+        !/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?: [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*\*\d{4}$/.test(requestedPassword))) {
+      return respond(request, { error: "Usá el formato nombre*año, con cuatro dígitos al final." }, 400);
     }
     const { data: account, error } = await supabase.rpc("sat_service_account", {
       target: delegation,
@@ -184,7 +189,9 @@ Deno.serve(async (request) => {
 
     if (action === "reset") {
       if (!account.auth_user_id) return respond(request, { error: "Cuenta sin configurar" }, 409);
-      const temporaryPassword = "Sat!" + crypto.randomUUID() + "9";
+      const temporaryPassword = typeof requestedPassword === "string"
+        ? requestedPassword
+        : "Sat!" + crypto.randomUUID() + "9";
       const prepared = await supabase.rpc("sat_service_prepare_reset", { target: delegation });
       if (prepared.error) return respond(request, { error: "No se pudo preparar el restablecimiento" }, 409);
       const reset = await supabase.auth.admin.updateUserById(account.auth_user_id, {
@@ -215,7 +222,9 @@ Deno.serve(async (request) => {
     if (action !== "create") return respond(request, { error: "Operación inválida" }, 400);
     if (account.auth_user_id) return respond(request, { error: "La cuenta ya existe" }, 409);
 
-    const initialPassword = "Sat!" + crypto.randomUUID() + "9";
+    const initialPassword = typeof requestedPassword === "string"
+      ? requestedPassword
+      : "Sat!" + crypto.randomUUID() + "9";
     const created = await supabase.auth.admin.createUser({
       email: slug + "@delegaciones.intur.local",
       password: initialPassword,

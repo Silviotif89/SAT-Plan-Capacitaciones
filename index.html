@@ -130,6 +130,12 @@
     <section id="satAccounts" class="sat-access" hidden>
       <h2>Usuarios y Contraseñas</h2>
       <p>Administrá el acceso por delegación. Las contraseñas temporales aparecen solo al crear o restablecer una cuenta.</p>
+      <div class="sat-temp-passwords">
+        <label>Contraseña temporal general<input id="satTempPasswordGeneral" type="password" autocomplete="new-password" minlength="8" maxlength="72" placeholder="Ejemplo: nombre*año"></label>
+        <label>Contraseña temporal RACCN<input id="satTempPasswordRaccn" type="password" autocomplete="new-password" minlength="8" maxlength="72" placeholder="RACCN*año"></label>
+        <label>Contraseña temporal RACCS<input id="satTempPasswordRaccs" type="password" autocomplete="new-password" minlength="8" maxlength="72" placeholder="RACCS*año"></label>
+      </div>
+      <p class="sat-temp-password-note">Escribí las contraseñas temporales antes de crear o restablecer. Solo se envían para esta operación; no se guardan en el código ni en el almacenamiento local.</p>
       <button id="satAccountsCreateAll" class="button primary" type="button">Crear cuentas pendientes</button>
       <p id="satAccountsMessage" role="status"></p>
       <div id="satAccountsCredentials" class="sat-accounts-credentials" aria-live="polite" hidden></div>

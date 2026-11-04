@@ -741,6 +741,21 @@
       await refreshSelectedPlanFromRemote()
       setDelegationControls()
     }
+    const temporaryPasswordFor = delegation => {
+      const id = delegation === 'RACCN' ? 'satTempPasswordRaccn'
+        : delegation === 'RACCS' ? 'satTempPasswordRaccs' : 'satTempPasswordGeneral'
+      const input = $(id), password = input.value
+      if (password.length < 8 || password.length > 72 || !/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?: [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*\*\d{4}$/.test(password)) {
+        input.focus()
+        throw new Error('Ingresá para ' + delegation + ' una contraseña temporal con formato nombre*año (4 dígitos).')
+      }
+      return password
+    }
+    const clearTemporaryPasswords = () => {
+      $('satTempPasswordGeneral').value = ''
+      $('satTempPasswordRaccn').value = ''
+      $('satTempPasswordRaccs').value = ''
+    }
     $('satAccountsLink').onclick = async keepTemporaryCredentials => {
       const admin = getAdminSession()
       if (!admin) return
@@ -761,9 +776,11 @@
             button.disabled = true
             try {
               if (row.provisioned && !window.confirm('¿Restablecer la contraseña de ' + row.delegation + '?')) { button.disabled = false; return }
+              const temporaryPassword = temporaryPasswordFor(row.delegation)
               const created = await api('/functions/v1/sat-accounts', {
-                method: 'POST', body: JSON.stringify({ delegation: row.delegation, action: row.provisioned ? 'reset' : 'create' })
+                method: 'POST', body: JSON.stringify({ delegation: row.delegation, action: row.provisioned ? 'reset' : 'create', temporaryPassword })
               }, admin.accessToken)
+              $(row.delegation === 'RACCN' ? 'satTempPasswordRaccn' : row.delegation === 'RACCS' ? 'satTempPasswordRaccs' : 'satTempPasswordGeneral').value = ''
               await $('satAccountsLink').onclick()
               const verification = created.checks?.isolation
                 ? 'Inicio, cambio y aislamiento probados. '
@@ -793,9 +810,13 @@
       try {
         const accounts = await rpc('sat_admin_accounts', admin.accessToken)
         const created = [], failures = []
-        for (const account of accounts.filter(item => !item.provisioned)) {
+        const pending = accounts.filter(item => !item.provisioned)
+        if (pending.length) pending.forEach(account => temporaryPasswordFor(account.delegation))
+        for (const account of pending) {
           try {
-            const result = await api('/functions/v1/sat-accounts', { method: 'POST', body: JSON.stringify({ delegation: account.delegation, action: 'create' }) }, admin.accessToken)
+            const result = await api('/functions/v1/sat-accounts', {
+              method: 'POST', body: JSON.stringify({ delegation: account.delegation, action: 'create', temporaryPassword: temporaryPasswordFor(account.delegation) })
+            }, admin.accessToken)
             if (result.verified !== true) throw new Error('La cuenta no confirmó las pruebas de acceso y aislamiento.')
             created.push(result)
           } catch (error) { failures.push(`${account.delegation}: ${error.message}`) }
@@ -810,6 +831,7 @@
           credentials.hidden = false
         }
         const summary = `${created.length} cuentas creadas y probadas${failures.length ? ` · ${failures.length} requieren revisión: ${failures.join('; ')}` : ''}. Copiá las contraseñas temporales antes de salir de esta pantalla.`
+        if (created.length) clearTemporaryPasswords()
         await $('satAccountsLink').onclick(true)
         status.textContent = summary
       } catch (error) { status.textContent = error.message }
