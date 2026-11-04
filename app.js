@@ -796,6 +796,12 @@
               button.disabled = false
             }
           }))
+          if (row.provisioned && !row.enabled) line.append(adminButton('Habilitar', async () => {
+            try {
+              await rpc('sat_admin_enable_account', admin.accessToken, { target: row.delegation, active: true })
+              await $('satAccountsLink').onclick()
+            } catch (error) { status.textContent = error.message }
+          }))
           accounts.append(line)
         }
       } catch (error) { status.textContent = error.message }
