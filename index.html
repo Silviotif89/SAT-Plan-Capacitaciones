@@ -9,21 +9,23 @@
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar" aria-label="Navegación del SAT Plan">
+    <aside class="sidebar" id="satSidebar" aria-label="Navegación del SAT Plan">
       <div class="sidebar-kicker">INTUR <span>·</span> SAT</div>
       <nav>
-        <a href="#pageHeading"><span aria-hidden="true">⌂</span> Inicio</a>
-        <a class="active" href="#delegateView"><span aria-hidden="true">▤</span> Registro del plan</a>
-        <a id="satAccountsLink" href="#satAccounts" hidden>Usuarios y Contraseñas</a>
-        <a href="#help"><span aria-hidden="true">?</span> Ayuda</a>
+        <a href="#pageHeading"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/></svg></span> Inicio</a>
+        <a class="active" href="#delegateView" aria-current="page"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span> Registro del plan</a>
+        <a id="satAccountsLink" href="#satAccounts" hidden><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Usuarios y Contraseñas</a>
+        <a href="#help"><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.7-2.5 2.1-2.5 4M12 17h.01"/></svg></span> Ayuda</a>
       </nav>
       <div class="sidebar-art" aria-hidden="true"><svg viewBox="0 0 260 300" preserveAspectRatio="none"><defs><linearGradient id="lake" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#00a8e1" stop-opacity=".08"/><stop offset="1" stop-color="#62c8ef" stop-opacity=".6"/></linearGradient></defs><path d="M0 132 39 83l25 30 39-74 52 95 29-50 76 61v155H0Z" fill="#168bd0" opacity=".42"/><path d="m0 165 45-39 35 22 31-35 53 51 31-31 65 43v124H0Z" fill="#063366" opacity=".62"/><path d="M0 178q45-9 87 3t85 0 88 2v117H0Z" fill="url(#lake)"/><path d="M0 214q48-8 94 2t85 0 81 1M0 246q48-6 94 2t85 0 81 1" fill="none" stroke="#c4efff" stroke-opacity=".42" stroke-width="2"/><g fill="none" stroke="#c4efff" stroke-opacity=".45" stroke-width="2"><path d="M57 86c-25-30-47-16-28 10-35-6-36 21-5 22-24 20-5 39 18 17 1 34 26 32 27 1 20 28 43 10 15-13 34 0 32-27-4-21 17-28-7-42-23-16Z"/><circle cx="65" cy="113" r="8"/></g></svg><em>Nicaragua Única... Original!</em></div>
       <div class="sidebar-bottom"><div class="brand-stripe" aria-hidden="true"><i></i><i></i><i></i><i></i></div><span>Dirección de Desarrollo Turístico</span></div>
     </aside>
+    <button class="menu-scrim" id="menuScrim" type="button" aria-label="Cerrar menú" hidden></button>
 
     <div class="app-main">
       <header class="hero">
         <div class="hero-inner">
+          <button class="menu-toggle" id="menuToggle" type="button" aria-label="Abrir menú" aria-controls="satSidebar" aria-expanded="false"><span aria-hidden="true">☰</span></button>
           <div class="brand"><img class="logo" src="assets/intur-nicaragua-unica.svg" alt="INTUR · Nicaragua Única"><div><span>Instituto Nicaragüense de Turismo</span><strong>Nicaragua Única... Original</strong></div></div>
           <div class="header-title"><span>SAT INTUR</span><strong>Registro del Plan Mensual de Capacitaciones</strong></div>
           <div class="header-actions"><span class="period-label" id="selectedPeriodLabel">▣ &nbsp;Noviembre 2026</span><a class="header-delegation" href="#identification"><small>Delegación</small><strong id="headerDelegationName">Chinandega</strong></a><button class="admin-access" id="adminAccess" type="button">◉ &nbsp;Acceso Admin</button></div>
@@ -35,10 +37,12 @@
 
     <section id="satDelegationAccess" class="sat-access">
       <form id="satDelegationLogin">
+        <span class="access-icon" aria-hidden="true">▣</span>
         <h2>Acceso por delegación</h2>
+        <p class="access-intro">Seleccioná tu delegación e ingresá para consultar y actualizar su plan mensual.</p>
         <label>Delegación <select id="satDelegationName" required></select></label>
-        <label>Contraseña <input id="satDelegationPassword" type="password" autocomplete="current-password" required></label>
-        <button class="button" type="submit">Ingresar</button>
+        <label>Contraseña <span class="password-field"><input id="satDelegationPassword" type="password" autocomplete="current-password" required><button id="satPasswordVisibility" type="button" aria-label="Mostrar contraseña" aria-pressed="false">Mostrar</button></span></label>
+        <button class="button primary full" type="submit">Ingresar</button>
       </form>
       <form id="satPasswordChange" hidden>
         <h2>Cambiar contraseña</h2>
@@ -155,6 +159,15 @@
       <p class="form-error" id="adminError" role="alert"></p>
       <button class="button primary full" type="submit">Ingresar</button>
     </form>
+  </dialog>
+
+  <dialog id="helpDialog" class="admin-dialog help-dialog" aria-labelledby="helpTitle">
+    <button class="dialog-close" id="helpClose" type="button" aria-label="Cerrar ayuda">×</button>
+    <span class="eyebrow dark">Ayuda del SAT</span>
+    <h2 id="helpTitle">Registro del plan mensual</h2>
+    <p>Ingresá con tu delegación para consultar el mes, registrar capacitaciones y descargar los planes disponibles.</p>
+    <p>Los planes enviados quedan en consulta. Si necesitás corregir uno, solicitá a la DDT la habilitación de edición.</p>
+    <p>Desde el selector de mes podés revisar períodos anteriores o futuros sin perder los registros guardados.</p>
   </dialog>
 
   <dialog id="assignmentDialog" class="admin-dialog assignment-dialog">

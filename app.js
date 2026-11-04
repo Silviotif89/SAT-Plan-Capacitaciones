@@ -201,7 +201,7 @@
     $('cancelledCount').textContent = cancelledActivities(current.activities).length
     $('participantCount').textContent = savedActivities.reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0).toLocaleString('es-NI')
     $('delegationMetric').textContent = current.delegation
-    $('headerDelegationName').textContent = displayDelegationName(current.delegation)
+    $('headerDelegationName').textContent = delegationAccount ? displayDelegationName(delegationAccount.delegation) : getAdminSession() ? 'Consola DDT' : 'Sin sesión'
     $('selectedPeriodLabel').textContent = `▣  ${periodLabel(selectedPlanPeriod)}`
     $('lastSaved').textContent = formatDateTime(current.updatedAt)
     $('activitiesHeading').textContent = `Capacitaciones de ${current.delegation}`
@@ -653,6 +653,14 @@
     $('satDelegationName').insertBefore(new Option('Seleccioná tu delegación', ''), $('satDelegationName').firstChild)
     $('satDelegationName').add(new Option('Prueba (reflejo de León)', 'Prueba'))
     $('satDelegationName').value = ''
+    $('satPasswordVisibility').onclick = () => {
+      const password = $('satDelegationPassword')
+      const visible = password.type === 'password'
+      password.type = visible ? 'text' : 'password'
+      $('satPasswordVisibility').textContent = visible ? 'Ocultar' : 'Mostrar'
+      $('satPasswordVisibility').setAttribute('aria-label', visible ? 'Ocultar contraseña' : 'Mostrar contraseña')
+      $('satPasswordVisibility').setAttribute('aria-pressed', String(visible))
+    }
     const rpc = (name, token, body = {}) => api('/rest/v1/rpc/' + name, {
       method: 'POST', body: JSON.stringify(body)
     }, token)
@@ -696,7 +704,12 @@
     login.onsubmit = async event => {
       event.preventDefault()
       const password = $('satDelegationPassword')
+      const submit = login.querySelector('button[type="submit"]')
       const user = $('satDelegationName').value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replaceAll(' ', '-')
+      message.textContent = ''
+      password.removeAttribute('aria-invalid')
+      submit.disabled = true
+      submit.textContent = 'Ingresando…'
       try {
         session = await api('/auth/v1/token?grant_type=password', {
           method: 'POST', body: JSON.stringify({ email: user + '@delegaciones.intur.local', password: password.value })
@@ -705,8 +718,8 @@
         if (account?.must_change_password) {
           showForcedPasswordChange(account)
         } else await showAccount()
-      } catch (error) { message.textContent = error.message }
-      finally { password.value = '' }
+      } catch (error) { message.textContent = error.message; password.setAttribute('aria-invalid', 'true') }
+      finally { password.value = ''; submit.disabled = false; submit.textContent = 'Ingresar' }
     }
     changeButton.onclick = () => {
       $('satDelegationAccess').append(changeButton, logout)
@@ -736,6 +749,7 @@
       login.hidden = false
       $('satDelegationAccess').hidden = false
       $('delegateView').hidden = true
+      $('headerDelegationName').textContent = 'Sin sesión'
       message.textContent = ''
       if (token) try { await api('/auth/v1/logout', { method: 'POST' }, token) }
       catch (error) { message.textContent = error.message }
@@ -929,6 +943,7 @@
     render()
   }
   async function showAdmin(token) {
+    $('headerDelegationName').textContent = 'Consola DDT'
     $('satAccountsLink').hidden = false
     $('satDelegationAccess').hidden = true
     $('delegateView').hidden = true; $('adminView').hidden = false
@@ -1237,6 +1252,40 @@
     })
   }
   function bindEvents() {
+    const menuToggle = $('menuToggle'), menuScrim = $('menuScrim')
+    const closeMenu = () => {
+      document.body.classList.remove('nav-open')
+      menuToggle.setAttribute('aria-expanded', 'false')
+      menuToggle.setAttribute('aria-label', 'Abrir menú')
+      menuScrim.hidden = true
+    }
+    menuToggle.onclick = () => {
+      const open = !document.body.classList.contains('nav-open')
+      document.body.classList.toggle('nav-open', open)
+      menuToggle.setAttribute('aria-expanded', String(open))
+      menuToggle.setAttribute('aria-label', open ? 'Cerrar menú' : 'Abrir menú')
+      menuScrim.hidden = !open
+    }
+    menuScrim.onclick = closeMenu
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') closeMenu() })
+    window.addEventListener('resize', () => { if (window.innerWidth > 760) closeMenu() })
+    $('helpClose').onclick = () => $('helpDialog').close()
+    document.querySelectorAll('.sidebar nav a').forEach(link => {
+      link.addEventListener('click', event => {
+        if (link.getAttribute('href') === '#help') {
+          event.preventDefault()
+          $('helpDialog').showModal()
+        } else if (link.id !== 'satAccountsLink' && document.querySelector(link.getAttribute('href'))?.closest('[hidden]')) {
+          event.preventDefault()
+          const destination = !$('satDelegationAccess').hidden ? $('satDelegationAccess') : $('adminView')
+          destination.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+        document.querySelectorAll('.sidebar nav a').forEach(item => { item.classList.remove('active'); item.removeAttribute('aria-current') })
+        link.classList.add('active')
+        link.setAttribute('aria-current', 'page')
+        closeMenu()
+      })
+    })
     $('addFirst').onclick = addActivity
     $('addActivityTop').onclick = addActivity
     $('submitPlan').onclick = () => savePlan('ENVIADO')
@@ -1248,7 +1297,7 @@
     $('adminPlanDdt').onclick = openPlanDdt
     $('ddtBack').onclick = () => { $('planDdtView').hidden = true; $('adminDashboard').hidden = false }
     $('downloadDdtWord').onclick = event => downloadDdtPlan(event.currentTarget)
-    $('adminLogout').onclick = () => { adminTemporaryPasswords.clear(); sessionStorage.removeItem(ADMIN_SESSION_KEY); $('adminView').hidden = true; $('delegateView').hidden = true; $('satAccountsLink').hidden = true; $('satAccounts').hidden = true; $('satAccountsMessage').textContent = ''; $('satDelegationAccess').hidden = false; toast('Sesión administrativa cerrada.') }
+    $('adminLogout').onclick = () => { adminTemporaryPasswords.clear(); sessionStorage.removeItem(ADMIN_SESSION_KEY); $('adminView').hidden = true; $('delegateView').hidden = true; $('satAccountsLink').hidden = true; $('satAccounts').hidden = true; $('satAccountsMessage').textContent = ''; $('satDelegationAccess').hidden = false; $('headerDelegationName').textContent = 'Sin sesión'; toast('Sesión administrativa cerrada.') }
     setupAdminPeriodPicker()
     setupDelegationAccess()
     $('adminDownloadComplete').onclick = event => exportPlan('wordComplete', adminRows, event.currentTarget)
