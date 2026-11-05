@@ -169,14 +169,11 @@
     </section>
     <section id="satAccounts" class="sat-access" hidden>
       <h2>Usuarios y Contraseñas</h2>
-      <p>Consultá las cuentas de las delegaciones y restablecé sus contraseñas cuando sea necesario. Por seguridad, las contraseñas vigentes no se pueden consultar.</p>
+      <p>Administrá el acceso de cada delegación desde su propia fila. Por seguridad, las contraseñas vigentes no se pueden consultar.</p>
       <div class="sat-temp-passwords">
         <label>Contraseña temporal opcional<input id="satTempPasswordGeneral" type="password" autocomplete="new-password" minlength="8" maxlength="72" placeholder="Dejala vacía para generar una"></label>
       </div>
-      <p class="sat-temp-password-note">Podés escribir una temporal con formato nombre*año, o dejar el campo vacío para generar una distinta y segura. La clave nueva se muestra una sola vez después de crear o restablecer la cuenta y se debe entregar a la persona por un canal seguro.</p>
-      <button id="satAccountsCreateAll" class="button primary" type="button">Crear cuentas pendientes</button>
-      <button id="satCreateTestAccount" class="button secondary" type="button">Crear reflejo de León para prueba</button>
-      <p class="sat-temp-password-note">Para crear la cuenta de prueba, ingresá la contraseña temporal acordada en el campo anterior. Su plan de noviembre será una copia editable de las actividades de León; no cambiará el plan original.</p>
+      <p class="sat-temp-password-note">Podés escribir una contraseña temporal con formato nombre*año, o dejar el campo vacío para generar una distinta y segura. La clave nueva se muestra una sola vez después de crear o restablecer una cuenta y se debe entregar a esa delegación.</p>
       <p id="satAccountsMessage" role="status"></p>
       <div id="satAccountsList"></div>
       <section class="password-reset-history" aria-labelledby="passwordHistoryHeading">

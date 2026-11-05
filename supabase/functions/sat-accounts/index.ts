@@ -1,5 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+const officialDelegations = new Set([
+  "Chinandega", "León", "Managua", "Masaya", "Rivas", "Carazo", "Granada",
+  "Jinotega", "Matagalpa", "Nueva Segovia", "Estelí", "Madriz", "Boaco",
+  "Chontales", "Río San Juan", "RACCN", "RACCS",
+]);
+
 const productionOrigin = "https://silviotif89.github.io";
 const allowedOrigins = new Set([
   productionOrigin,
@@ -173,6 +179,9 @@ Deno.serve(async (request) => {
     if (typeof delegation !== "string" || !delegation.trim() || delegation.length > 100) {
       return respond(request, { error: "Delegación inválida" }, 400);
     }
+    if (!officialDelegations.has(delegation)) {
+      return respond(request, { error: "Seleccioná una de las 17 delegaciones oficiales." }, 400);
+    }
     if (requestedPassword !== undefined &&
       (typeof requestedPassword !== "string" || requestedPassword.length < 8 || requestedPassword.length > 72 ||
         !/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?: [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*\*\d{4}$/.test(requestedPassword))) {
@@ -186,34 +195,6 @@ Deno.serve(async (request) => {
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
       .replaceAll(" ", "-");
-
-    if (action === "delete-test") {
-      if (delegation !== "Prueba") {
-        return respond(request, { error: "Solo se puede eliminar la cuenta temporal Prueba." }, 403);
-      }
-      if (account.auth_user_id) {
-        const unlinked = await supabase.rpc("sat_service_unlink", {
-          target: "Prueba",
-          account_id: account.auth_user_id,
-        });
-        if (unlinked.error) {
-          return respond(request, { error: "No se pudo proteger la cuenta antes de eliminarla." }, 409);
-        }
-        const deletedUser = await supabase.auth.admin.deleteUser(account.auth_user_id);
-        if (deletedUser.error) {
-          return respond(request, { error: "La cuenta quedó deshabilitada. Volvé a intentar eliminar la prueba." }, 409);
-        }
-      }
-      const removed = await supabase.rpc("sat_service_delete_test", { target: "Prueba" });
-      if (removed.error) {
-        return respond(request, { error: "No se pudo eliminar la copia de prueba de forma segura." }, 409);
-      }
-      return respond(request, {
-        delegation: "Prueba",
-        deleted: true,
-        preserved: { officialDelegations: 17, novemberPlans: 15 },
-      });
-    }
 
     if (action === "reset") {
       if (!account.auth_user_id) return respond(request, { error: "Cuenta sin configurar" }, 409);

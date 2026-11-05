@@ -12,7 +12,7 @@
     'Costa Caribe': ['RACCN', 'RACCS']
   }
   const DELEGATIONS = Object.values(REGIONS).flat()
-  const displayDelegationName = delegation => delegation === 'Prueba' ? 'Prueba (reflejo de León)' : delegation
+  const displayDelegationName = delegation => delegation
   const PROVIDERS = ['INTUR CENTRAL', 'INATEC', 'MIFIC', 'MINSA', 'SETEC', 'BOMBEROS', 'POLICÍA', 'Cruz Blanca', 'Delegación Departamental', 'Otra institución']
   const ACTIVITY_TYPES = ['Capacitación', 'Taller', 'Curso', 'Seminario', 'Charla', 'Asistencia técnica', 'Otra']
   const MODALITIES = ['Presencial', 'Virtual', 'Híbrida']
@@ -752,7 +752,6 @@
     let session = null
     setOptions($('satDelegationName'), DELEGATIONS, '')
     $('satDelegationName').insertBefore(new Option('Seleccioná tu delegación', ''), $('satDelegationName').firstChild)
-    $('satDelegationName').add(new Option('Prueba (reflejo de León)', 'Prueba'))
     $('satDelegationName').value = ''
     $('satPasswordVisibility').onclick = () => {
       const password = $('satDelegationPassword')
@@ -914,7 +913,7 @@
       try {
         const delegation = $('satPasswordHistoryFilter').value || null
         const rows = await rpc('sat_admin_password_reset_history', admin.accessToken, { p_delegation: delegation })
-        renderPasswordHistory(rows)
+        renderPasswordHistory(rows.filter(row => DELEGATIONS.includes(row.delegation)))
       } catch (error) {
         root.textContent = error.status === 404
           ? 'El historial seguro todavía no está disponible. Actualizá la aplicación después de habilitar el registro en Supabase.'
@@ -929,7 +928,7 @@
       accounts.replaceChildren()
       status.textContent = ''
       try {
-        const rows = await rpc('sat_admin_accounts', admin.accessToken)
+        const rows = (await rpc('sat_admin_accounts', admin.accessToken)).filter(row => DELEGATIONS.includes(row.delegation))
         const filter = $('satPasswordHistoryFilter')
         const selectedFilter = filter.value
         filter.replaceChildren(new Option('Todas', ''), ...rows.map(row => new Option(displayDelegationName(row.delegation), row.delegation)))
@@ -963,21 +962,6 @@
               await refreshSatAccounts()
             } catch (error) { status.textContent = error.message }
           }))
-          if (row.delegation === 'Prueba') line.append(adminButton('Eliminar prueba', async event => {
-            const button = event.currentTarget
-            if (!window.confirm('Se eliminará únicamente la cuenta Prueba y su copia del plan de León. El plan original y las 17 delegaciones oficiales no se modificarán. ¿Continuar?')) return
-            button.disabled = true
-            try {
-              await api('/functions/v1/sat-accounts', {
-                method: 'POST', body: JSON.stringify({ delegation: 'Prueba', action: 'delete-test' })
-              }, admin.accessToken)
-              await refreshSatAccounts()
-              status.textContent = 'La cuenta de prueba y su copia de León fueron eliminadas. Los datos oficiales permanecen intactos.'
-            } catch (error) {
-              status.textContent = error.message
-              button.disabled = false
-            }
-          }, 'button ghost admin-danger'))
           accounts.append(line)
         }
       } catch (error) { status.textContent = error.message }
@@ -993,57 +977,6 @@
     passwordRevealDialog.addEventListener('close', clearReveal)
     $('satPasswordRevealClose').onclick = () => passwordRevealDialog.close()
     $('satPasswordRevealDone').onclick = () => passwordRevealDialog.close()
-    $('satAccountsCreateAll').onclick = async event => {
-      const admin = getAdminSession()
-      if (!admin) return
-      const button = event.currentTarget, status = $('satAccountsMessage')
-      if (!window.confirm('Se crearán cuentas solo para las delegaciones que aún no tienen acceso. Si dejaste vacía la contraseña temporal, se generará una clave diferente para cada cuenta. ¿Continuar?')) return
-      button.disabled = true; status.textContent = 'Preparando las cuentas pendientes…'
-      try {
-        const accounts = await rpc('sat_admin_accounts', admin.accessToken)
-        const created = [], failures = []
-        const pending = accounts.filter(item => item.delegation !== 'Prueba' && !item.provisioned)
-        if (pending.length) pending.forEach(account => temporaryPasswordFor(account.delegation))
-        for (const account of pending) {
-          try {
-            const temporaryPassword = temporaryPasswordFor(account.delegation)
-            const result = await api('/functions/v1/sat-accounts', {
-              method: 'POST', body: JSON.stringify({ delegation: account.delegation, action: 'create', ...(temporaryPassword ? { temporaryPassword } : {}) })
-            }, admin.accessToken)
-            if (result.verified !== true) throw new Error('La cuenta no confirmó las pruebas de acceso y aislamiento.')
-            created.push(result)
-          } catch (error) { failures.push(`${account.delegation}: ${error.message}`) }
-        }
-        if (created.length) clearTemporaryPasswordInput()
-        await refreshSatAccounts()
-        status.textContent = `${created.length} cuentas creadas y probadas${failures.length ? ` · ${failures.length} requieren revisión: ${failures.join('; ')}` : ''}. ${created.length ? 'Guardá las contraseñas temporales ahora.' : ''}`
-        if (created.length) showTemporaryPasswords(created)
-      } catch (error) { status.textContent = error.message }
-      finally { button.disabled = false }
-    }
-    $('satCreateTestAccount').onclick = async event => {
-      const admin = getAdminSession()
-      if (!admin) return
-      const button = event.currentTarget, status = $('satAccountsMessage')
-      button.disabled = true
-      try {
-        const temporaryPassword = temporaryPasswordFor('Prueba')
-        const rows = await rpc('sat_admin_accounts', admin.accessToken)
-        const testAccount = rows.find(row => row.delegation === 'Prueba')
-        if (!testAccount) throw new Error('La copia de León aún no está preparada en Supabase.')
-        if (testAccount.provisioned) throw new Error('La cuenta de prueba ya existe. Usá “Restablecer contraseña” en su fila.')
-        if (!window.confirm('Se creará la cuenta aislada Prueba con una copia editable de las actividades de León. ¿Continuar?')) return
-        const result = await api('/functions/v1/sat-accounts', {
-          method: 'POST', body: JSON.stringify({ delegation: 'Prueba', action: 'create', ...(temporaryPassword ? { temporaryPassword } : {}) })
-        }, admin.accessToken)
-        if (result.verified !== true || result.checks?.isolation !== true) throw new Error('La cuenta no superó la verificación de aislamiento.')
-        clearTemporaryPasswordInput()
-        await refreshSatAccounts()
-        status.textContent = 'Cuenta Prueba creada. Guardá la contraseña temporal; el sistema pedirá cambiarla al primer acceso.'
-        showTemporaryPasswords([result])
-      } catch (error) { status.textContent = error.message }
-      finally { button.disabled = false }
-    }
   }
   function setupDelegationPeriodPicker() {
     const picker = $('delegationPeriodPicker')
