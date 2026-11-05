@@ -207,8 +207,25 @@
     $('activitiesHeading').textContent = 'Capacitaciones'
     $('emptyState').querySelector('p').textContent = `Agregá la primera capacitación de tu delegación para ${periodLabel(selectedPlanPeriod).toLocaleLowerCase('es-NI')}.`
     const sent = current.status === 'ENVIADO'
+    const readonly = Boolean(delegationSession && !delegationCanEdit)
+    $('planSendPanel').classList.toggle('is-readonly', readonly)
+    if (delegationSession) {
+      $('connection').textContent = sent
+        ? readonly
+          ? 'Plan enviado a la DDT. Podés consultarlo y descargarlo.'
+          : 'Plan enviado a la DDT. Si tenés permiso, podés guardar cambios.'
+        : 'Conexión activa. Al confirmar el envío, la DDT recibirá tu plan.'
+    }
     $('planStatus').textContent = sent ? 'Enviado a la DDT' : current.remoteId ? 'Borrador guardado' : 'Borrador en este dispositivo'
     $('planStatus').classList.toggle('sent', current.status === 'ENVIADO')
+    $('registrantHelp').textContent = readonly
+      ? 'Este plan ya fue enviado. Los datos de quien registra se muestran como referencia y no se pueden cambiar.'
+      : 'Escribí los datos de la persona responsable del plan. Los campos con * son necesarios.'
+    $('activitiesHelp').textContent = readonly
+      ? 'Este plan ya fue enviado a la DDT. Podés consultar las capacitaciones y descargarlo abajo.'
+      : 'Agregá o editá las capacitaciones del mes. Cuando el plan esté completo, podrás enviarlo a la DDT.'
+    $('help').hidden = readonly
+    for (const id of ['saveDraftStep1', 'saveDraftStep2']) $(id).hidden = readonly
     const downloadReady = Boolean(delegationSession && sent && current.remoteId)
     $('downloadPanel').hidden = false
     $('downloadEyebrow').textContent = downloadReady ? 'Plan enviado' : 'Descargas del plan'
@@ -218,18 +235,21 @@
       : 'Las descargas estarán disponibles cuando envíes el plan a la DDT.'
     $('downloadWord').disabled = !downloadReady
     $('downloadExcel').disabled = !downloadReady
-    $('submitStepTitle').textContent = sent ? 'Plan enviado a la DDT' : 'Revisar y enviar'
+    $('submitStepTitle').textContent = sent ? 'Plan enviado a la DDT' : 'Enviar plan a la DDT'
     $('submitStepHelp').textContent = sent
-      ? 'La DDT recibió tu plan. Si tenés permiso para editarlo, podés guardar los cambios.'
-      : 'Revisá la información. La DDT (Dirección de Desarrollo Turístico) recibirá el plan cuando lo envíes.'
+      ? readonly
+        ? 'La DDT recibió este plan. Podés consultarlo y descargarlo. Para hacer cambios, solicitá habilitación a la DDT.'
+        : 'La DDT recibió este plan. Si hiciste cambios autorizados, confirmá para guardarlos.'
+      : 'Cuando termines de cargar las capacitaciones, seleccioná “Enviar plan a la DDT”. El sistema te pedirá confirmar antes de enviarlo.'
     $('submitPlan').textContent = sent ? 'Guardar cambios' : 'Enviar plan a la DDT'
-    updatePlanReviewSummary()
+    if (delegationSession && sent && readonly) $('saveMessage').textContent = 'Plan enviado y guardado en el SAT. Está disponible para consulta y descarga.'
+    updatePlanSendSummary()
   }
   function setDelegationControls() {
     if (!delegationSession || !delegationAccount) return
     const readonly = !delegationCanEdit
     $('delegationReadOnly').hidden = !readonly
-    for (const id of ['addActivityTop', 'addFirst', 'submitPlan']) $(id).hidden = readonly
+    for (const id of ['addActivityTop', 'addFirst', 'submitPlan', 'saveDraftStep1', 'saveDraftStep2']) $(id).hidden = readonly
     for (const id of ['region', 'delegation', 'registrantName', 'registrantRole', 'registrantEmail', 'registrantPhone']) {
       const control = $(id)
       control.disabled = readonly || id === 'region' || id === 'delegation'
@@ -244,32 +264,27 @@
     renderSummary()
     if (readonly) $('planStatus').textContent = 'Enviado · Solo consulta'
   }
-  function updatePlanReviewSummary() {
+  function updatePlanSendSummary() {
     const current = plan()
     const activities = (current.activities || []).filter(item => !item.draft)
     const active = activities.filter(item => !isCancelled(item))
     const projected = active.reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0)
     const person = current.registrantName.trim() || 'persona responsable'
-    $('planReviewSummary').textContent = `${displayDelegationName(current.delegation)} · ${periodLabel(selectedPlanPeriod)}. ${activities.length} capacitación${activities.length === 1 ? '' : 'es'} registrada${activities.length === 1 ? '' : 's'} (${cancelledActivities(activities).length} cancelada${cancelledActivities(activities).length === 1 ? '' : 's'}), a cargo de ${person}. Proyección: ${projected.toLocaleString('es-NI')} participantes.`
-    const reviewList = $('planReviewActivities')
-    reviewList.replaceChildren(...activities.map((item, index) => {
-      const state = isCancelled(item) ? 'Cancelada' : 'Programada'
-      const details = `${index + 1}. ${item.topic || 'Capacitación sin tema'} · ${state} · ${formatActivityDate(item.date)} · ${item.startTime || 'Sin hora'} a ${item.endTime || 'Sin hora'} · ${item.municipality || 'Sin municipio'} · ${item.location || 'Sin lugar'} · ${Number(item.projectedParticipants) || 0} participantes`
-      return text('li', details, isCancelled(item) ? 'review-cancelled' : '')
-    }))
-    reviewList.hidden = activities.length === 0
+    $('planSendSummary').textContent = `${displayDelegationName(current.delegation)} · ${periodLabel(selectedPlanPeriod)} · ${activities.length} capacitación${activities.length === 1 ? '' : 'es'} registrada${activities.length === 1 ? '' : 's'} (${cancelledActivities(activities).length} cancelada${cancelledActivities(activities).length === 1 ? '' : 's'}) · ${projected.toLocaleString('es-NI')} participantes proyectados · a cargo de ${person}.`
   }
   function showDelegationStep(step, shouldScroll = true) {
-    activeDelegationStep = Math.max(1, Math.min(3, Number(step) || 1))
-    for (let number = 1; number <= 3; number += 1) {
+    activeDelegationStep = Math.max(1, Math.min(2, Number(step) || 1))
+    for (let number = 1; number <= 2; number += 1) {
       $(`delegationStep${number}`).hidden = number !== activeDelegationStep
       const progress = $(`stepProgress${number}`)
+      const button = $(`stepNav${number}`)
       progress.classList.toggle('is-current', number === activeDelegationStep)
       progress.classList.toggle('is-complete', number < activeDelegationStep)
       if (number === activeDelegationStep) progress.setAttribute('aria-current', 'step')
       else progress.removeAttribute('aria-current')
+      if (number === activeDelegationStep) button.setAttribute('aria-current', 'step')
+      else button.removeAttribute('aria-current')
     }
-    if (activeDelegationStep === 3) updatePlanReviewSummary()
     if (shouldScroll) {
       const heading = $(`delegationStep${activeDelegationStep}`).querySelector('h2')
       if (heading) {
@@ -304,10 +319,15 @@
   function requestPlanSubmission() {
     const current = plan()
     const issues = validatePlan(current.status !== 'ENVIADO')
-    if (issues.length) { showIssuesInStep(issues, 3); return }
-    updatePlanReviewSummary()
-    $('submitConfirmSummary').textContent = $('planReviewSummary').textContent
-    $('confirmSubmitPlan').textContent = current.status === 'ENVIADO' ? 'Sí, guardar cambios' : 'Sí, enviar el plan'
+    if (issues.length) { showIssuesInStep(issues, 2); return }
+    const alreadySent = current.status === 'ENVIADO'
+    updatePlanSendSummary()
+    $('submitConfirmTitle').textContent = alreadySent ? '¿Guardar los cambios del plan?' : '¿Enviar este plan a la DDT?'
+    $('submitConfirmSummary').textContent = $('planSendSummary').textContent
+    $('submitConfirmHelp').textContent = alreadySent
+      ? 'La DDT ya recibió este plan. Confirmá para guardar los cambios autorizados.'
+      : 'Después del envío, la DDT recibirá este plan. Podrás descargarlo cuando el sistema confirme que fue recibido.'
+    $('confirmSubmitPlan').textContent = alreadySent ? 'Sí, guardar cambios' : 'Sí, enviar el plan'
     $('submitConfirmDialog').showModal()
   }
   function label(text, input, help = '', className = '') {
@@ -502,7 +522,7 @@
     if (savingPlan) return false
     const current = plan()
     const finalSubmission = status === 'ENVIADO' && current.status !== 'ENVIADO'; const issues = validatePlan(finalSubmission)
-    if (issues.length) { showValidationIssues(issues); toast('Completá los campos resaltados en rojo.'); return false }
+    if (issues.length) { showIssuesInStep(issues, 2); toast('Completá los campos resaltados en rojo.'); return false }
     if (!configured) { persistLocal(); toast('Borrador local guardado. Falta conectar Supabase para registrar la información en línea.'); return false }
     const payload = remotePayload(current, status)
     if (delegationSession && selectedPlanPeriod !== '2026-11') {
@@ -534,6 +554,10 @@
       }
       $('saveMessage').textContent = status === 'ENVIADO' ? 'Plan enviado correctamente a la DDT.' : 'Borrador guardado en línea.'
       toast(status === 'ENVIADO' ? 'Plan enviado correctamente.' : 'Borrador guardado en línea.')
+      if (status === 'ENVIADO' && delegationSession) {
+        try { await refreshSelectedPlanFromRemote() }
+        catch (_) { delegationCanEdit = false; setDelegationControls() }
+      }
       return true
     } catch (error) {
       const message = error.status === 409 ? 'Esta delegación ya tiene un plan registrado desde otro navegador. Contactá a la DDT para recuperar el acceso.' : `No se pudo guardar: ${error.message}`
@@ -1445,18 +1469,14 @@
     })
     $('addFirst').onclick = addActivity
     $('addActivityTop').onclick = addActivity
+    $('stepNav1').onclick = () => showDelegationStep(1)
+    $('stepNav2').onclick = () => showDelegationStep(2)
     $('step1Continue').onclick = () => {
       const issues = registrantStepIssues()
       if (issues.length) { showIssuesInStep(issues, 1); return }
       showDelegationStep(2)
     }
     $('step2Back').onclick = () => showDelegationStep(1)
-    $('step2Continue').onclick = () => {
-      const issues = validatePlan(false)
-      if (issues.length) { showIssuesInStep(issues, 2); return }
-      showDelegationStep(3)
-    }
-    $('step3Back').onclick = () => showDelegationStep(2)
     $('saveDraftStep1').onclick = saveDraftOnDevice
     $('saveDraftStep2').onclick = saveDraftOnDevice
     $('submitPlan').onclick = requestPlanSubmission

@@ -50,11 +50,11 @@
         <button class="button" type="submit">Guardar contraseña</button>
       </form>
       <p id="satAccessMessage" role="status"></p>
-      <p id="delegationReadOnly" role="status" hidden>Este plan fue enviado y está disponible únicamente para consulta y descarga. Para modificarlo, solicite habilitación a la DDT.</p>
+      <p id="delegationReadOnly" role="status" hidden>Este plan ya fue enviado a la DDT. Podés consultarlo y descargarlo. Para hacer cambios, solicitá habilitación a la DDT.</p>
     </section>
     <section id="delegateView" hidden>
       <div class="page-heading" id="pageHeading">
-        <div class="page-heading-copy"><h1>Registro de capacitaciones</h1><p>Completá el plan de tu delegación siguiendo estos tres pasos. Podés guardar cada capacitación y continuar después.</p></div>
+        <div class="page-heading-copy"><h1>Registro de capacitaciones</h1><p>Completá el plan en dos pasos: primero tus datos y después las capacitaciones.</p></div>
         <div class="delegate-session-actions" id="satDelegationSessionActions" hidden>
           <div class="delegate-period-picker" id="delegationPeriodPicker">
             <span class="period-label" id="delegationPeriodLabel">Mes del plan</span>
@@ -74,14 +74,13 @@
         </div>
       </div>
       <ol class="delegate-step-progress" aria-label="Pasos para completar el plan">
-        <li id="stepProgress1" aria-current="step"><span>1</span><strong>Datos</strong></li>
-        <li id="stepProgress2"><span>2</span><strong>Capacitaciones</strong></li>
-        <li id="stepProgress3"><span>3</span><strong>Revisar y enviar</strong></li>
+        <li id="stepProgress1" aria-current="step"><button class="step-progress-button" id="stepNav1" type="button" aria-controls="delegationStep1" aria-current="step"><span>1</span><strong>Datos de quien registra</strong></button></li>
+        <li id="stepProgress2"><button class="step-progress-button" id="stepNav2" type="button" aria-controls="delegationStep2"><span>2</span><strong>Capacitaciones</strong></button></li>
       </ol>
       <p id="saveMessage" class="save-state" role="status" aria-live="polite">Los cambios se guardan en este dispositivo mientras completás el plan.</p>
       <div id="delegationStep1" class="delegation-step">
       <section class="panel identity-panel" id="identification">
-        <div class="panel-title"><div class="step-heading"><span class="step-number" aria-hidden="true">1</span><div><span class="step-caption">PASO 1 DE 3</span><h2>Datos de quien registra</h2><p>Escribí los datos de la persona responsable del plan. Los campos con * son necesarios.</p></div></div><span class="status-pill" id="planStatus">Borrador</span></div>
+        <div class="panel-title"><div class="step-heading"><span class="step-number" aria-hidden="true">1</span><div><span class="step-caption">PASO 1 DE 2</span><h2>Datos de quien registra</h2><p id="registrantHelp">Escribí los datos de la persona responsable del plan. Los campos con * son necesarios.</p></div></div><span class="status-pill" id="planStatus">Borrador</span></div>
         <div class="identity-grid">
           <label class="identity-field field-region"><span>Región <b class="required-mark">*</b></span><select id="region"></select></label>
           <label class="identity-field field-delegation"><span>Delegación <b class="required-mark">*</b></span><select id="delegation"></select></label>
@@ -103,19 +102,14 @@
       </div>
       <div id="delegationStep2" class="delegation-step" hidden>
       <section class="panel plan-panel">
-        <div class="panel-title plan-heading"><div class="step-heading"><span class="step-number" aria-hidden="true">2</span><div><span class="step-caption">PASO 2 DE 3</span><h2 id="activitiesHeading">Capacitaciones</h2><p>Agregá las capacitaciones del mes. Cada una se guarda antes de continuar con la siguiente.</p></div></div><button class="button add-activity" id="addActivityTop" type="button">＋ Agregar capacitación</button></div>
+        <div class="panel-title plan-heading"><div class="step-heading"><span class="step-number" aria-hidden="true">2</span><div><span class="step-caption">PASO 2 DE 2</span><h2 id="activitiesHeading">Capacitaciones</h2><p id="activitiesHelp">Agregá o editá las capacitaciones del mes. Cuando el plan esté completo, podrás enviarlo a la DDT.</p></div></div><button class="button add-activity" id="addActivityTop" type="button">＋ Agregar capacitación</button></div>
         <div class="guidance" id="help"><b>Cómo empezar:</b> Tocá “Agregar capacitación”, completá los campos con * y presioná “Guardar actividad”. Si dura varios días, registrala una sola vez y anotá las otras fechas.</div>
         <div id="activities"></div>
         <div class="empty" id="emptyState"><span aria-hidden="true">🗓️</span><h3>Aún no hay capacitaciones para este mes</h3><p>Cuando estés lista, agregá la primera capacitación para el período seleccionado.</p><button class="button secondary" type="button" id="addFirst">Agregar primera capacitación</button></div>
       </section>
-      <div class="step-actions"><button class="button ghost" id="step2Back" type="button">Volver a datos</button><button class="button secondary step-save-draft" id="saveDraftStep2" type="button">Guardar borrador en este dispositivo</button><button class="button primary" id="step2Continue" type="button">Continuar a revisar</button></div>
-      </div>
-      <div id="delegationStep3" class="delegation-step" hidden>
-      <section class="submit-panel">
-        <div class="step-heading submit-step-heading"><span class="step-number" aria-hidden="true">3</span><div><span class="step-caption">PASO 3 DE 3</span><h2 id="submitStepTitle">Revisar y enviar</h2><p id="submitStepHelp">Revisá la información. La DDT (Dirección de Desarrollo Turístico) recibirá el plan cuando lo envíes.</p></div></div>
-        <div class="plan-review-summary" id="planReviewSummary" role="status" aria-live="polite">Revisá los datos principales antes de enviar.</div>
-        <ol class="plan-review-activities" id="planReviewActivities" aria-label="Capacitaciones incluidas en el plan"></ol>
-        <div class="step-actions"><button class="button ghost" id="step3Back" type="button">Volver a capacitaciones</button><button class="button primary" id="submitPlan" type="button">Enviar plan a la DDT</button></div>
+      <section class="panel plan-send-panel" id="planSendPanel" aria-labelledby="submitStepTitle">
+        <div class="plan-send-copy"><span class="eyebrow dark">Envío del plan</span><h2 id="submitStepTitle">Enviar plan a la DDT</h2><p id="submitStepHelp">Cuando termines de cargar las capacitaciones, seleccioná “Enviar plan a la DDT”. El sistema te pedirá confirmar antes de enviarlo.</p><p class="plan-send-summary" id="planSendSummary" role="status" aria-live="polite">Completá las capacitaciones y confirmá el envío cuando el plan esté listo.</p></div>
+        <div class="step-actions plan-send-actions"><button class="button ghost" id="step2Back" type="button">Volver a datos</button><button class="button secondary step-save-draft" id="saveDraftStep2" type="button">Guardar borrador en este dispositivo</button><button class="button primary" id="submitPlan" type="button">Enviar plan a la DDT</button></div>
       </section>
       <section class="panel download-panel" id="downloadPanel" aria-live="polite">
         <div><span class="eyebrow dark" id="downloadEyebrow">Descargas del plan</span><h2 id="downloadHeading">Podrás descargar el plan después de enviarlo</h2><p id="downloadHelp">Las descargas estarán disponibles cuando envíes el plan a la DDT.</p></div>
@@ -125,7 +119,7 @@
     </section>
 
     <dialog id="submitConfirmDialog" class="submit-confirm-dialog" aria-labelledby="submitConfirmTitle">
-      <form method="dialog"><h2 id="submitConfirmTitle">¿Enviar este plan a la DDT?</h2><p id="submitConfirmSummary"></p><p>Después del envío, la Dirección de Desarrollo Turístico recibirá este plan. Podrás descargarlo cuando el sistema confirme que fue recibido.</p><div class="dialog-actions"><button class="button ghost" value="cancel">Volver a revisar</button><button class="button primary" id="confirmSubmitPlan" type="button">Sí, enviar el plan</button></div></form>
+      <form method="dialog"><h2 id="submitConfirmTitle">¿Enviar este plan a la DDT?</h2><p id="submitConfirmSummary"></p><p id="submitConfirmHelp">Después del envío, la Dirección de Desarrollo Turístico recibirá este plan. Podrás descargarlo cuando el sistema confirme que fue recibido.</p><div class="dialog-actions"><button class="button ghost" value="cancel">Volver al plan</button><button class="button primary" id="confirmSubmitPlan" type="button">Sí, enviar el plan</button></div></form>
     </dialog>
 
     <section id="adminView" class="admin-view" hidden>

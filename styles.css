@@ -281,10 +281,14 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important}
 /* Registro guiado para uso sencillo en computadora y celular */
 #delegateView .delegate-step-progress{display:flex;align-items:center;gap:10px;list-style:none;margin:4px 0 10px;padding:0;max-width:850px}
 #delegateView .delegate-step-progress li{display:flex;align-items:center;gap:8px;flex:1;min-width:0;color:#60748e;font-size:.9rem;line-height:1.2}
-#delegateView .delegate-step-progress li>span{display:grid;place-items:center;width:36px;height:36px;flex:none;border:2px solid #cbd8e8;border-radius:50%;background:#fff;color:#455e7d;font-size:1rem;font-weight:850}
+#delegateView .step-progress-button{display:flex;align-items:center;gap:8px;width:100%;min-width:0;min-height:44px;padding:3px 5px;border:0;border-radius:10px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+#delegateView .step-progress-button:focus-visible{outline:3px solid #ffbb37;outline-offset:2px}
+#delegateView .step-progress-button:disabled{cursor:not-allowed;opacity:.65}
+#delegateView .step-progress-button>span{display:grid;place-items:center;width:36px;height:36px;flex:none;border:2px solid #cbd8e8;border-radius:50%;background:#fff;color:#455e7d;font-size:1rem;font-weight:850}
+#delegateView .step-progress-button strong{min-width:0;overflow-wrap:anywhere}
 #delegateView .delegate-step-progress li.is-current{color:#123b7a;font-weight:800}
-#delegateView .delegate-step-progress li.is-current>span{border-color:#0969c8;background:#0969c8;color:#fff}
-#delegateView .delegate-step-progress li.is-complete>span{border-color:#168454;background:#e8f7ef;color:#12603d}
+#delegateView .delegate-step-progress li.is-current .step-progress-button>span{border-color:#0969c8;background:#0969c8;color:#fff}
+#delegateView .delegate-step-progress li.is-complete .step-progress-button>span{border-color:#168454;background:#e8f7ef;color:#12603d}
 #delegateView .save-state{min-height:24px;margin:0 0 14px;color:#3b597c;font-size:.91rem;line-height:1.45}
 #delegateView .delegate-session-actions{align-items:flex-end;gap:10px;max-width:100%}
 #delegateView .delegate-period-picker{position:relative;width:min(100%,385px);margin:0}
@@ -332,14 +336,14 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important}
 #delegateView .step-actions-end{justify-content:space-between}
 #delegateView .step-actions .button{min-height:52px;padding:11px 17px;font-size:.92rem}
 #delegateView .step-save-draft{background:#fff;color:#23456f;border:1px solid #cbd8e8}
-#delegateView .plan-review-summary{margin:12px 0;padding:15px;border-radius:11px;background:#f3f8fe;color:#244768;font-size:.97rem;line-height:1.6}
-#delegateView .plan-review-activities{display:grid;gap:8px;margin:0;padding:0;list-style:none}
-#delegateView .plan-review-activities li{padding:12px 14px;border:1px solid #dce6f2;border-radius:10px;background:#fff;color:#284967;font-size:.9rem;line-height:1.55;overflow-wrap:anywhere}
-#delegateView .plan-review-activities li.review-cancelled{border-color:#f0d4d8;background:#fff8f8;color:#75414c}
-#delegateView .confirmation{max-width:none;align-items:flex-start;font-size:.93rem;line-height:1.5}
-#delegateView .confirmation input{width:22px;height:22px;min-width:22px;min-height:22px;margin-top:0}
-#delegateView .submit-panel{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
-#delegateView .submit-panel .step-actions{justify-content:space-between;margin:4px 0 0}
+#delegateView .plan-send-panel{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);align-items:center;gap:18px;margin:15px 0 14px;padding:18px 20px;border-color:#d8e4f0;box-shadow:0 5px 18px rgba(18,59,122,.06)}
+#delegateView .plan-send-copy h2{margin:4px 0 6px;color:#123b7a;font-size:1.2rem;line-height:1.35}
+#delegateView .plan-send-copy>p{margin:0;color:#536b87;font-size:.93rem;line-height:1.55}
+#delegateView .plan-send-copy .plan-send-summary{margin-top:10px;padding:10px 12px;border-radius:9px;background:#f3f8fe;color:#244768;font-size:.88rem;line-height:1.5}
+#delegateView .plan-send-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin:0}
+#delegateView .plan-send-actions .button{min-height:50px;padding:10px 14px}
+#delegateView .plan-send-actions #submitPlan{background:#008c58}
+#delegateView .plan-send-panel.is-readonly .plan-send-actions{justify-content:flex-start}
 #delegateView .field-error{font-size:.82rem;line-height:1.45}
 #delegateView label.field-invalid{font-size:.91rem}
 #delegateView .download-panel{align-items:flex-start;margin:0 0 24px;padding:18px}
@@ -354,7 +358,8 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important}
 .submit-confirm-dialog .dialog-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:8px}
 .submit-confirm-dialog .button{min-height:50px}
 @media(max-width:900px){#delegateView .delegate-session-actions{width:100%;justify-content:space-between}#delegateView .delegate-period-picker{width:min(100%,430px)}#delegateView .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:620px){#delegateView .page-heading{gap:14px}#delegateView .delegate-session-actions{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch}#delegateView .delegate-period-picker{width:100%}#delegateView .delegate-account-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}#delegateView .delegate-account-actions .button{min-height:48px;padding:9px 7px;font-size:.82rem}#delegateView .delegate-step-progress{gap:5px}#delegateView .delegate-step-progress li{flex-direction:column;align-items:flex-start;gap:4px;font-size:.78rem}#delegateView .delegate-step-progress li>span{width:34px;height:34px}#delegateView .step-heading{gap:10px}#delegateView .step-number{width:38px;height:38px}#delegateView .step-heading p{font-size:.92rem}#delegateView .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}#delegateView .metrics article{min-height:78px;padding:10px}#delegateView .metrics strong{font-size:1.15rem}#delegateView .step-actions,#delegateView .step-actions-end{display:grid;grid-template-columns:1fr;justify-content:stretch}#delegateView .step-actions .button{width:100%;min-height:54px}#delegateView .step-save-draft{grid-row:2}#delegateView .submit-panel .step-actions #step3Back{grid-row:2}#delegateView .delegate-period-panel{right:0;left:0;width:100%}#delegateView .delegate-period-controls{grid-template-columns:minmax(72px,.8fr) minmax(135px,1.4fr) minmax(72px,.8fr);gap:5px}#delegateView .delegate-period-controls>button{min-height:54px;padding:7px 4px;font-size:.77rem}#delegateView .delegate-period-controls>button>span{overflow-wrap:anywhere}#delegateView .delegate-month-choice{min-height:51px;font-size:.87rem}#delegateView .download-panel{padding:15px}#delegateView .download-actions{width:100%}.submit-confirm-dialog .dialog-actions{display:grid;grid-template-columns:1fr}.submit-confirm-dialog .dialog-actions .button{width:100%;min-height:52px}}
+@media(max-width:900px){#delegateView .plan-send-panel{grid-template-columns:1fr;gap:12px}#delegateView .plan-send-actions{justify-content:flex-start}}
+@media(max-width:620px){#delegateView .page-heading{gap:14px}#delegateView .delegate-session-actions{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch}#delegateView .delegate-period-picker{width:100%}#delegateView .delegate-account-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}#delegateView .delegate-account-actions .button{min-height:48px;padding:9px 7px;font-size:.82rem}#delegateView .delegate-step-progress{gap:5px}#delegateView .delegate-step-progress li{flex-direction:row;align-items:stretch;gap:4px;font-size:.78rem}#delegateView .step-progress-button{flex-direction:column;align-items:flex-start;gap:4px;padding:4px}#delegateView .step-progress-button>span{width:34px;height:34px}#delegateView .step-progress-button strong{font-size:.78rem;line-height:1.25}#delegateView .step-heading{gap:10px}#delegateView .step-number{width:38px;height:38px}#delegateView .step-heading p{font-size:.92rem}#delegateView .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}#delegateView .metrics article{min-height:78px;padding:10px}#delegateView .metrics strong{font-size:1.15rem}#delegateView .step-actions,#delegateView .step-actions-end{display:grid;grid-template-columns:1fr;justify-content:stretch}#delegateView .step-actions .button{width:100%;min-height:54px}#delegateView .step-save-draft{grid-row:auto}#delegateView .plan-send-actions{display:grid;grid-template-columns:1fr;gap:8px}#delegateView .plan-send-actions #submitPlan{grid-row:1;grid-column:1;order:0}#delegateView .plan-send-actions #saveDraftStep2{grid-row:2;grid-column:1;order:1}#delegateView .plan-send-actions #step2Back{grid-row:3;grid-column:1;order:2}#delegateView .plan-send-panel{padding:15px}#delegateView .delegate-period-panel{right:0;left:0;width:100%}#delegateView .delegate-period-controls{grid-template-columns:minmax(72px,.8fr) minmax(135px,1.4fr) minmax(72px,.8fr);gap:5px}#delegateView .delegate-period-controls>button{min-height:54px;padding:7px 4px;font-size:.77rem}#delegateView .delegate-period-controls>button>span{overflow-wrap:anywhere}#delegateView .delegate-month-choice{min-height:51px;font-size:.87rem}#delegateView .download-panel{padding:15px}#delegateView .download-actions{width:100%}.submit-confirm-dialog .dialog-actions{display:grid;grid-template-columns:1fr}.submit-confirm-dialog .dialog-actions .button{width:100%;min-height:52px}}
 @media(max-width:370px){#delegateView .delegate-period-controls{grid-template-columns:minmax(64px,.75fr) minmax(125px,1.5fr) minmax(64px,.75fr)}#delegateView .delegate-period-controls>button{font-size:.72rem}#delegateView .delegate-month-choice{font-size:.81rem}}
 [hidden]{display:none!important}
 #satAccounts .password-reset-history{margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--sat-stroke,#dce6f2)}
