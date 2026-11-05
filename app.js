@@ -1386,28 +1386,45 @@
       const select = selectControl(['BORRADOR', 'ENVIADO'], row.status)
       statusRow.append(label('Cambiar estado del plan', select), adminButton('Guardar estado', async () => { if (select.value !== row.status && confirm(`¿Cambiar el estado de ${row.delegation} a ${select.value}?`)) await saveAdminRow(row, { status: select.value }, 'Estado actualizado.'); else if (select.value === row.status) toast('El estado no cambió.') }, 'button secondary'), adminButton('＋ Agregar capacitación', () => buildAdminEditor(row, body), 'button secondary'))
       if (row.period && row.status === 'ENVIADO') {
-        const permissionLabel = text('span', 'Verificando permiso…')
-        statusRow.append(permissionLabel)
+        const permissionPanel = document.createElement('div'); permissionPanel.className = 'admin-edit-permission'
+        const permissionCopy = document.createElement('div'); permissionCopy.className = 'admin-edit-permission-copy'
+        permissionCopy.append(text('strong', 'Edición del plan enviado'), text('small', `${displayDelegationName(row.delegation)} · ${periodLabel(String(row.period).slice(0, 7))}`))
+        const permissionStatus = text('span', 'Consultando permiso…', 'admin-edit-permission-status')
+        permissionStatus.setAttribute('role', 'status'); permissionStatus.setAttribute('aria-live', 'polite')
+        permissionPanel.append(permissionCopy, permissionStatus)
+        body.append(statusRow, permissionPanel)
         api(`/rest/v1/sat_plan_edit_permissions?period=eq.${row.period}&delegation=eq.${encodeURIComponent(row.delegation)}&select=enabled`, {}, getAdminSession()?.accessToken || '').then(rows => {
           let enabled = rows[0]?.enabled === true
-          permissionLabel.textContent = enabled ? 'Edición habilitada' : 'Solo consulta'
-          const permissionButton = adminButton(enabled ? 'Bloquear edición' : 'Habilitar edición', async () => {
+          permissionStatus.textContent = enabled ? 'Edición permitida' : 'Solo consulta'
+          permissionStatus.classList.toggle('is-enabled', enabled)
+          const permissionButton = adminButton(enabled ? 'Quitar permiso de edición' : 'Permitir editar a la delegación', async () => {
             const next = !enabled
+            const month = periodLabel(String(row.period).slice(0, 7))
+            const question = next
+              ? `¿Permitir que ${displayDelegationName(row.delegation)} edite el plan enviado de ${month}?`
+              : `¿Quitar el permiso de edición de ${displayDelegationName(row.delegation)} para ${month}?`
+            if (!confirm(question)) return
+            const session = getAdminSession()
+            if (!session) { toast('La sesión administrativa expiró. Iniciá sesión nuevamente.'); return }
+            permissionButton.disabled = true
             try {
               await api('/rest/v1/sat_plan_edit_permissions?on_conflict=period,delegation', {
                 method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
                 body: JSON.stringify({ period: row.period, delegation: row.delegation, enabled: next })
-              }, getAdminSession()?.accessToken || '')
+              }, session.accessToken)
               enabled = next
-              permissionLabel.textContent = enabled ? 'Edición habilitada' : 'Solo consulta'
-              permissionButton.textContent = enabled ? 'Bloquear edición' : 'Habilitar edición'
-              toast(enabled ? 'Edición habilitada para este plan.' : 'Edición bloqueada para este plan.')
+              permissionStatus.textContent = enabled ? 'Edición permitida' : 'Solo consulta'
+              permissionStatus.classList.toggle('is-enabled', enabled)
+              permissionButton.textContent = enabled ? 'Quitar permiso de edición' : 'Permitir editar a la delegación'
+              toast(enabled
+                ? `${displayDelegationName(row.delegation)} puede editar su plan de ${month}. Pedile que actualice la página para ver los controles.`
+                : `Se quitó el permiso de edición de ${displayDelegationName(row.delegation)} para ${month}.`)
             } catch (error) { toast('No se pudo actualizar el permiso: ' + error.message) }
+            finally { permissionButton.disabled = false }
           }, 'button secondary')
-          statusRow.append(permissionButton)
-        }).catch(error => { permissionLabel.textContent = 'No se pudo consultar el permiso'; toast(error.message) })
-      }
-      body.append(statusRow)
+          permissionPanel.append(permissionButton)
+        }).catch(error => { permissionStatus.textContent = 'No se pudo consultar el permiso'; toast(error.message) })
+      } else body.append(statusRow)
       if (row.status === 'ENVIADO') {
         const downloads = document.createElement('div'); downloads.className = 'admin-downloads'
         downloads.append(text('p', `Descargas disponibles para el plan enviado de ${row.delegation}.`))
