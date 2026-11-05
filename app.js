@@ -24,6 +24,7 @@
   const now = () => new Date().toISOString()
   const formatDateTime = value => value ? new Intl.DateTimeFormat('es-NI', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : 'Pendiente'
   const isCancelled = item => String(item?.status || '').toUpperCase() === 'CANCELADA'
+  const isNoActivitiesDeclaration = value => value?.status === 'ENVIADO' && Array.isArray(value.activities) && value.activities.length === 0
   const activeActivities = items => (items || []).filter(item => !item.draft && !isCancelled(item))
   const cancelledActivities = items => (items || []).filter(isCancelled)
   const blankActivity = () => ({ id: makeId(), draft: true, activityType: 'Capacitación', topic: '', date: selectedPlanPeriod + '-02', additionalDates: '', startTime: '08:00', endTime: '12:00', municipality: '', location: '', modality: 'Presencial', trainingProvider: '', ddtFacilitator: '', participatingInstitutions: '', responsible: '', projectedParticipants: 25, observations: '' })
@@ -41,6 +42,7 @@
   let adminRows = []
   let ddtActivities = []
   let savingPlan = false
+  let pendingNoActivitiesSubmission = false
   let editingActivityId = null
   let editingSnapshot = null
   let pendingCancel = null
@@ -197,6 +199,7 @@
   function renderSummary() {
     const current = plan()
     const savedActivities = activeActivities(current.activities)
+    const noActivitiesDeclaration = isNoActivitiesDeclaration(current)
     $('activityCount').textContent = savedActivities.length
     $('cancelledCount').textContent = cancelledActivities(current.activities).length
     $('participantCount').textContent = savedActivities.reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0).toLocaleString('es-NI')
@@ -205,51 +208,70 @@
     $('selectedPeriodLabel').textContent = `▣  ${periodLabel(selectedPlanPeriod)}`
     $('lastSaved').textContent = formatDateTime(current.updatedAt)
     $('activitiesHeading').textContent = 'Capacitaciones'
-    $('emptyState').querySelector('p').textContent = `Agregá la primera capacitación de tu delegación para ${periodLabel(selectedPlanPeriod).toLocaleLowerCase('es-NI')}.`
+    $('emptyState').querySelector('h3').textContent = noActivitiesDeclaration ? 'Aviso enviado a la DDT' : 'Aún no hay capacitaciones para este mes'
+    $('emptyState').querySelector('p').textContent = noActivitiesDeclaration
+      ? `La DDT recibió el aviso de que no tenés capacitaciones planificadas para ${periodLabel(selectedPlanPeriod).toLocaleLowerCase('es-NI')}.`
+      : `Agregá la primera capacitación de tu delegación para ${periodLabel(selectedPlanPeriod).toLocaleLowerCase('es-NI')}.`
     const sent = current.status === 'ENVIADO'
     const readonly = Boolean(delegationSession && !delegationCanEdit)
     $('planSendPanel').classList.toggle('is-readonly', readonly)
     if (delegationSession) {
       $('connection').textContent = sent
-        ? readonly
-          ? 'Plan enviado a la DDT. Podés consultarlo y descargarlo.'
-          : 'Plan enviado a la DDT. Si tenés permiso, podés guardar cambios.'
-        : 'Conexión activa. Al confirmar el envío, la DDT recibirá tu plan.'
+        ? noActivitiesDeclaration
+          ? 'La DDT recibió el aviso de que no hay capacitaciones planificadas para este mes.'
+          : readonly
+            ? 'Plan enviado a la DDT. Podés consultarlo y descargarlo.'
+            : 'Plan enviado a la DDT. Si tenés permiso, podés guardar cambios.'
+        : 'Conexión activa. Al confirmar, la DDT recibirá tu plan o el aviso de este mes.'
     }
-    $('planStatus').textContent = sent ? 'Enviado a la DDT' : current.remoteId ? 'Borrador guardado' : 'Borrador en este dispositivo'
+    $('planStatus').textContent = noActivitiesDeclaration ? 'Sin capacitaciones · Enviado a la DDT' : sent ? 'Enviado a la DDT' : current.remoteId ? 'Borrador guardado' : 'Borrador en este dispositivo'
     $('planStatus').classList.toggle('sent', current.status === 'ENVIADO')
     $('registrantHelp').textContent = readonly
-      ? 'Este plan ya fue enviado. Los datos de quien registra se muestran como referencia y no se pueden cambiar.'
+      ? `Este ${noActivitiesDeclaration ? 'aviso' : 'plan'} ya fue enviado. Los datos de quien registra se muestran como referencia y no se pueden cambiar.`
       : 'Escribí los datos de la persona responsable del plan. Los campos con * son necesarios.'
     $('activitiesHelp').textContent = readonly
-      ? 'Este plan ya fue enviado a la DDT. Podés consultar las capacitaciones y descargarlo abajo.'
+      ? noActivitiesDeclaration
+        ? 'Este mes informaste que no hay capacitaciones planificadas.'
+        : 'Este plan ya fue enviado a la DDT. Podés consultar las capacitaciones y descargarlo abajo.'
       : 'Agregá o editá las capacitaciones del mes. Cuando el plan esté completo, podrás enviarlo a la DDT.'
     $('help').hidden = readonly
     for (const id of ['saveDraftStep1', 'saveDraftStep2']) $(id).hidden = readonly
     const downloadReady = Boolean(delegationSession && sent && current.remoteId)
     $('downloadPanel').hidden = false
-    $('downloadEyebrow').textContent = downloadReady ? 'Plan enviado' : 'Descargas del plan'
-    $('downloadHeading').textContent = downloadReady ? 'Tu plan ya está listo para descargar' : 'Podrás descargar el plan después de enviarlo'
-    $('downloadHelp').textContent = downloadReady
-      ? 'La DDT recibió tu plan. Elegí el formato que necesitás.'
-      : 'Las descargas estarán disponibles cuando envíes el plan a la DDT.'
+    $('downloadEyebrow').textContent = noActivitiesDeclaration && downloadReady ? 'Aviso enviado' : downloadReady ? 'Plan enviado' : 'Descargas del plan'
+    $('downloadHeading').textContent = noActivitiesDeclaration && downloadReady
+      ? 'El aviso ya está registrado en el SAT'
+      : downloadReady ? 'Tu plan ya está listo para descargar' : 'Podrás descargar el plan después de enviarlo'
+    $('downloadHelp').textContent = noActivitiesDeclaration && downloadReady
+      ? 'La DDT recibió el aviso. Podés descargar el registro en Word o Excel.'
+      : downloadReady
+        ? 'La DDT recibió tu plan. Elegí el formato que necesitás.'
+        : 'Las descargas estarán disponibles cuando envíes el plan a la DDT.'
     $('downloadWord').disabled = !downloadReady
     $('downloadExcel').disabled = !downloadReady
-    $('submitStepTitle').textContent = sent ? 'Plan enviado a la DDT' : 'Enviar plan a la DDT'
+    $('submitStepTitle').textContent = noActivitiesDeclaration ? 'Aviso enviado a la DDT' : sent ? 'Plan enviado a la DDT' : 'Enviar plan a la DDT'
     $('submitStepHelp').textContent = sent
       ? readonly
         ? 'La DDT recibió este plan. Podés consultarlo y descargarlo. Para hacer cambios, solicitá habilitación a la DDT.'
         : 'La DDT recibió este plan. Si hiciste cambios autorizados, confirmá para guardarlos.'
       : 'Cuando termines de cargar las capacitaciones, seleccioná “Enviar plan a la DDT”. El sistema te pedirá confirmar antes de enviarlo.'
+    if (noActivitiesDeclaration) $('submitStepHelp').textContent = readonly
+      ? 'La DDT recibió tu aviso de que no hay capacitaciones planificadas para este mes.'
+      : 'La DDT habilitó cambios. Podés agregar las capacitaciones de este mes y guardarlas.'
     $('submitPlan').textContent = sent ? 'Guardar cambios' : 'Enviar plan a la DDT'
-    if (delegationSession && sent && readonly) $('saveMessage').textContent = 'Plan enviado y guardado en el SAT. Está disponible para consulta y descarga.'
-    updatePlanSendSummary()
+    $('submitPlan').hidden = readonly || (!sent && current.activities.length === 0)
+    $('submitNoActivities').hidden = readonly || sent || current.activities.length > 0
+    $('addFirst').hidden = readonly
+    if (delegationSession && sent && readonly) $('saveMessage').textContent = noActivitiesDeclaration
+      ? 'El aviso de que no hay capacitaciones planificadas fue enviado y quedó guardado en el SAT.'
+      : 'Plan enviado y guardado en el SAT. Está disponible para consulta y descarga.'
+    updatePlanSendSummary(noActivitiesDeclaration)
   }
   function setDelegationControls() {
     if (!delegationSession || !delegationAccount) return
     const readonly = !delegationCanEdit
     $('delegationReadOnly').hidden = !readonly
-    for (const id of ['addActivityTop', 'addFirst', 'submitPlan', 'saveDraftStep1', 'saveDraftStep2']) $(id).hidden = readonly
+    for (const id of ['addActivityTop', 'addFirst', 'submitPlan', 'submitNoActivities', 'saveDraftStep1', 'saveDraftStep2']) $(id).hidden = readonly
     for (const id of ['region', 'delegation', 'registrantName', 'registrantRole', 'registrantEmail', 'registrantPhone']) {
       const control = $(id)
       control.disabled = readonly || id === 'region' || id === 'delegation'
@@ -262,11 +284,16 @@
     $('submitPlan').disabled = readonly
     $('submitPlan').textContent = plan().status === 'ENVIADO' ? 'Guardar cambios' : 'Enviar plan a la DDT'
     renderSummary()
-    if (readonly) $('planStatus').textContent = 'Enviado · Solo consulta'
+    if (readonly) $('planStatus').textContent = isNoActivitiesDeclaration(plan()) ? 'Sin capacitaciones · Solo consulta' : 'Enviado · Solo consulta'
   }
-  function updatePlanSendSummary() {
+  function updatePlanSendSummary(noActivities = false) {
     const current = plan()
     const activities = (current.activities || []).filter(item => !item.draft)
+    if (noActivities || isNoActivitiesDeclaration(current)) {
+      const person = current.registrantName.trim() || 'persona responsable'
+      $('planSendSummary').textContent = `${displayDelegationName(current.delegation)} · ${periodLabel(selectedPlanPeriod)} · Sin capacitaciones planificadas este mes · a cargo de ${person}.`
+      return
+    }
     const active = activities.filter(item => !isCancelled(item))
     const projected = active.reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0)
     const person = current.registrantName.trim() || 'persona responsable'
@@ -316,18 +343,23 @@
     showDelegationStep(step)
     showValidationIssues(issues)
   }
-  function requestPlanSubmission() {
+  function requestPlanSubmission(noActivities = false) {
     const current = plan()
-    const issues = validatePlan(current.status !== 'ENVIADO')
+    if (noActivities && current.activities.length) { toast('Quitá o guardá las capacitaciones antes de enviar este aviso.'); return }
+    const isDeclaration = noActivities || isNoActivitiesDeclaration(current)
+    const issues = validatePlan(current.status !== 'ENVIADO', isDeclaration)
     if (issues.length) { showIssuesInStep(issues, 2); return }
     const alreadySent = current.status === 'ENVIADO'
-    updatePlanSendSummary()
-    $('submitConfirmTitle').textContent = alreadySent ? '¿Guardar los cambios del plan?' : '¿Enviar este plan a la DDT?'
+    pendingNoActivitiesSubmission = isDeclaration && !alreadySent
+    updatePlanSendSummary(isDeclaration)
+    $('submitConfirmTitle').textContent = alreadySent ? '¿Guardar los cambios del plan?' : isDeclaration ? '¿Enviar este aviso a la DDT?' : '¿Enviar este plan a la DDT?'
     $('submitConfirmSummary').textContent = $('planSendSummary').textContent
     $('submitConfirmHelp').textContent = alreadySent
       ? 'La DDT ya recibió este plan. Confirmá para guardar los cambios autorizados.'
-      : 'Después del envío, la DDT recibirá este plan. Podrás descargarlo cuando el sistema confirme que fue recibido.'
-    $('confirmSubmitPlan').textContent = alreadySent ? 'Sí, guardar cambios' : 'Sí, enviar el plan'
+      : isDeclaration
+        ? 'La DDT recibirá este aviso para el mes seleccionado. Si después necesitás agregar una capacitación, solicitá permiso de edición a la DDT.'
+        : 'Después del envío, la DDT recibirá este plan. Podrás descargarlo cuando el sistema confirme que fue recibido.'
+    $('confirmSubmitPlan').textContent = alreadySent ? 'Sí, guardar cambios' : isDeclaration ? 'Sí, enviar el aviso' : 'Sí, enviar el plan'
     $('submitConfirmDialog').showModal()
   }
   function label(text, input, help = '', className = '') {
@@ -488,14 +520,14 @@
     }
     $('saveMessage').textContent = 'Completá los campos resaltados en rojo antes de enviar el plan.'
   }
-  function validatePlan(finalSubmission = false) {
+  function validatePlan(finalSubmission = false, allowNoActivities = false) {
     const current = plan(); const issues = []
     const addIssue = (message, target, activityId = null) => issues.push({ message, target, activityId })
     if (!current.registrantName.trim()) addIssue('Indicá el nombre de quien registra.', () => $('registrantName'))
     if (!current.registrantRole.trim()) addIssue('Indicá el cargo.', () => $('registrantRole'))
     if (!/^\S+@\S+\.\S+$/.test(current.registrantEmail)) addIssue('Ingresá un correo válido.', () => $('registrantEmail'))
     if (!current.registrantPhone.trim()) addIssue('Indicá el teléfono.', () => $('registrantPhone'))
-    if (!current.activities.length) addIssue('Agregá al menos una capacitación.', () => $('addFirst'))
+    if (!current.activities.length && !allowNoActivities && !isNoActivitiesDeclaration(current)) addIssue('Agregá una capacitación o avisá a la DDT que no tenés capacitaciones planificadas para este mes.', () => $('addFirst'))
     current.activities.forEach((item, index) => {
       if (item.draft) addIssue(`Guardá la actividad ${index + 1} antes de enviar.`, () => document.querySelector(`[data-save-activity="${item.id}"]`))
       const required = {
@@ -518,10 +550,10 @@
   function remotePayload(current, status) {
     return { region: current.region, delegation: current.delegation, registrant_name: current.registrantName.trim(), registrant_role: current.registrantRole.trim(), registrant_email: current.registrantEmail.trim(), registrant_phone: current.registrantPhone.trim(), activities: clone(current.activities), status, edit_token: current.editToken, updated_at: now() }
   }
-  async function savePlan(status) {
+  async function savePlan(status, allowNoActivities = false) {
     if (savingPlan) return false
     const current = plan()
-    const finalSubmission = status === 'ENVIADO' && current.status !== 'ENVIADO'; const issues = validatePlan(finalSubmission)
+    const finalSubmission = status === 'ENVIADO' && current.status !== 'ENVIADO'; const issues = validatePlan(finalSubmission, allowNoActivities || isNoActivitiesDeclaration(current))
     if (issues.length) { showIssuesInStep(issues, 2); toast('Completá los campos resaltados en rojo.'); return false }
     if (!configured) { persistLocal(); toast('Borrador local guardado. Falta conectar Supabase para registrar la información en línea.'); return false }
     const payload = remotePayload(current, status)
@@ -543,7 +575,14 @@
         }
         rows = await api(`/rest/v1/${endpointTable}?id=eq.${encodeURIComponent(current.remoteId)}&updated_at=eq.${encodeURIComponent(current.remoteUpdatedAt)}&select=*`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }, accessToken, delegationSession ? '' : current.editToken)
       }
-      else rows = await api(`/rest/v1/${endpointTable}?select=*`, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...payload, created_at: now() }) }, accessToken, current.editToken)
+      else if (delegationSession && status === 'ENVIADO' && allowNoActivities) {
+        const draftRows = await api(`/rest/v1/${endpointTable}?select=*`, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...payload, status: 'BORRADOR', created_at: now() }) }, accessToken, current.editToken)
+        if (!draftRows?.length) throw new Error('No se pudo guardar el aviso en línea. Revisá tu conexión e intentá nuevamente.')
+        current.remoteId = draftRows[0].id; current.remoteUpdatedAt = draftRows[0].updated_at || now(); current.status = String(draftRows[0].status || 'BORRADOR').toUpperCase(); current.updatedAt = current.remoteUpdatedAt; persistLocal()
+        const submittedPayload = { ...payload }
+        if (selectedPlanPeriod === '2026-11') delete submittedPayload.edit_token
+        rows = await api(`/rest/v1/${endpointTable}?id=eq.${encodeURIComponent(current.remoteId)}&updated_at=eq.${encodeURIComponent(current.remoteUpdatedAt)}&select=*`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(submittedPayload) }, accessToken, '')
+      } else rows = await api(`/rest/v1/${endpointTable}?select=*`, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...payload, created_at: now() }) }, accessToken, current.editToken)
       if (!rows?.length) throw new Error('No se guardó: el plan cambió desde la última consulta. Actualizá la página, revisá los cambios y volvé a guardar para no perder información.')
       const storedStatus = String(rows[0].status || '').toUpperCase()
       current.remoteId = rows[0].id; current.remoteUpdatedAt = rows[0].updated_at || now(); if (storedStatus) current.status = storedStatus; current.updatedAt = current.remoteUpdatedAt; persistLocal(); clearValidationErrors(); renderSummary()
@@ -1356,17 +1395,19 @@
     const root = $('adminList'); const expandedIds = new Set([...root.querySelectorAll('details[open]')].map(el => el.dataset.rowId)); root.replaceChildren()
     if (!filtered.length) { root.append(text('div', 'No hay registros para los filtros seleccionados.', 'admin-empty')); return }
     filtered.forEach(row => {
+      const noActivitiesDeclaration = isNoActivitiesDeclaration(row)
       const details = document.createElement('details'); details.className = 'admin-card'; details.dataset.rowId = row.id; details.open = row.id === openId || expandedIds.has(row.id)
       const summary = document.createElement('summary'); const count = activeActivities(row.activities).length; const cancelled = cancelledActivities(row.activities).length; const projected = activeActivities(row.activities).reduce((sum, item) => sum + (Number(item.projectedParticipants) || 0), 0)
       const identity = document.createElement('div'); identity.append(text('strong', row.delegation), text('small', row.region))
       const contact = document.createElement('div'); contact.append(text('strong', row.registrant_name), text('small', row.registrant_role || 'Cargo no indicado'))
-      const totals = document.createElement('div'); totals.append(text('strong', `${count} vigentes`), text('small', `${projected} participantes${cancelled ? ` · ${cancelled} canceladas` : ''}`))
-      const state = text('span', row.status === 'ENVIADO' ? 'Enviado' : 'Borrador', `admin-state${row.status === 'ENVIADO' ? ' sent' : ''}`)
+      const totals = document.createElement('div'); totals.append(text('strong', noActivitiesDeclaration ? 'Sin capacitaciones' : `${count} vigentes`), text('small', noActivitiesDeclaration ? 'Aviso recibido para este mes' : `${projected} participantes${cancelled ? ` · ${cancelled} canceladas` : ''}`))
+      const state = text('span', noActivitiesDeclaration ? 'Sin capacitaciones' : row.status === 'ENVIADO' ? 'Enviado' : 'Borrador', `admin-state${row.status === 'ENVIADO' ? ' sent' : ''}`)
       summary.append(identity, contact, totals, state)
       const body = document.createElement('div'); body.className = 'admin-detail'
       const contactGrid = document.createElement('div'); contactGrid.className = 'admin-contact'
-      ;[['Registró', row.registrant_name], ['Cargo', row.registrant_role], ['Correo', row.registrant_email], ['Teléfono', row.registrant_phone], ['Última actualización', formatDateTime(row.updated_at)], ['Estado', row.status]].forEach(([name, value]) => contactGrid.append(adminField(name, value)))
+      ;[['Registró', row.registrant_name], ['Cargo', row.registrant_role], ['Correo', row.registrant_email], ['Teléfono', row.registrant_phone], ['Última actualización', formatDateTime(row.updated_at)], ['Estado', noActivitiesDeclaration ? 'Sin capacitaciones planificadas' : row.status]].forEach(([name, value]) => contactGrid.append(adminField(name, value)))
       body.append(contactGrid)
+      if (noActivitiesDeclaration) body.append(text('p', `${displayDelegationName(row.delegation)} informó que no tiene capacitaciones planificadas para ${periodLabel(String(row.period || '2026-11-01').slice(0, 7))}.`, 'admin-no-training-notice'))
       const statusRow = document.createElement('div'); statusRow.className = 'admin-toolbar'
       const select = selectControl(['BORRADOR', 'ENVIADO'], row.status)
       statusRow.append(label('Cambiar estado del plan', select), adminButton('Guardar estado', async () => { if (select.value !== row.status && confirm(`¿Cambiar el estado de ${row.delegation} a ${select.value}?`)) await saveAdminRow(row, { status: select.value }, 'Estado actualizado.'); else if (select.value === row.status) toast('El estado no cambió.') }, 'button secondary'), adminButton('＋ Agregar capacitación', () => buildAdminEditor(row, body), 'button secondary'))
@@ -1471,6 +1512,7 @@
     })
     $('addFirst').onclick = addActivity
     $('addActivityTop').onclick = addActivity
+    $('submitNoActivities').onclick = () => requestPlanSubmission(true)
     $('stepNav1').onclick = () => showDelegationStep(1)
     $('stepNav2').onclick = () => showDelegationStep(2)
     $('step1Continue').onclick = () => {
@@ -1486,7 +1528,11 @@
       const button = $('confirmSubmitPlan')
       button.disabled = true
       try {
-        if (await savePlan('ENVIADO')) $('submitConfirmDialog').close()
+        const isNoActivitiesSubmission = pendingNoActivitiesSubmission
+        if (await savePlan('ENVIADO', isNoActivitiesSubmission)) {
+          pendingNoActivitiesSubmission = false
+          $('submitConfirmDialog').close()
+        }
       } finally { button.disabled = false }
     }
     $('downloadWord').onclick = event => exportPlan('word', plan(), event.currentTarget)

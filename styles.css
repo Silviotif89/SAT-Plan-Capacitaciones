@@ -363,6 +363,12 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important}
 @media(max-width:370px){#delegateView .delegate-period-controls{grid-template-columns:minmax(64px,.75fr) minmax(125px,1.5fr) minmax(64px,.75fr)}#delegateView .delegate-period-controls>button{font-size:.72rem}#delegateView .delegate-month-choice{font-size:.81rem}}
 [hidden]{display:none!important}
 #satAccounts .password-reset-history{margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--sat-stroke,#dce6f2)}
+.empty-actions{display:flex;justify-content:center;align-items:stretch;gap:10px;flex-wrap:wrap;margin-top:14px}
+.empty-actions .button{min-height:52px;padding:11px 17px}
+.button.no-training-submit{background:#edf5ff;border:1px solid #c8d9ef;color:#174679}
+.button.no-training-submit:hover{background:#e2efff;border-color:#8fb2dc}
+.admin-no-training-notice{margin:14px 0;padding:12px 14px;border-left:4px solid #1473c9;border-radius:8px;background:#f1f7fd;color:#234768;line-height:1.5}
+@media(max-width:620px){.empty-actions{display:grid;grid-template-columns:1fr;width:100%;max-width:460px;margin:14px auto 0}.empty-actions .button{width:100%;min-height:56px}.button.no-training-submit{line-height:1.35;white-space:normal}}
 #satAccounts .password-history-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;margin-bottom:.75rem}
 #satAccounts .password-history-heading h3{margin:0;color:var(--sat-deep,#123b7a);font-size:1.1rem}
 #satAccounts .password-history-heading p{margin:.35rem 0 0;color:#526685;line-height:1.5}
