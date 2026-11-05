@@ -883,19 +883,6 @@
       if (token) try { await api('/auth/v1/logout', { method: 'POST' }, token) }
       catch (error) { message.textContent = error.message }
     }
-    const temporaryPasswordFor = delegation => {
-      const input = $('satTempPasswordGeneral'), password = input.value.trim()
-      if (!password) return undefined
-      const match = password.match(/^([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?: [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*)\*(\d{4})$/)
-      if (password.length < 8 || password.length > 72 || !match) {
-        input.focus()
-        throw new Error('Usá el formato nombre*año, con cuatro dígitos al final, o dejá el campo vacío para generar una contraseña segura.')
-      }
-      if (delegation === 'RACCN') return `RACCN*${match[2]}`
-      if (delegation === 'RACCS') return `RACCS*${match[2]}`
-      return password
-    }
-    const clearTemporaryPasswordInput = () => { $('satTempPasswordGeneral').value = '' }
     function showTemporaryPasswords(credentials) {
       const dialog = $('satPasswordRevealDialog'), root = $('satPasswordRevealList')
       const entries = credentials.filter(item => item?.temporaryPassword)
@@ -965,12 +952,10 @@
             button.disabled = true
             try {
               if (row.provisioned && !window.confirm('Se cambiará la clave actual por una temporal nueva y la delegación deberá crear otra al ingresar. ¿Restablecer la contraseña de ' + row.delegation + '?')) { button.disabled = false; return }
-              const temporaryPassword = temporaryPasswordFor(row.delegation)
               const result = await api('/functions/v1/sat-accounts', {
-                method: 'POST', body: JSON.stringify({ delegation: row.delegation, action: row.provisioned ? 'reset' : 'create', ...(temporaryPassword ? { temporaryPassword } : {}) })
+                method: 'POST', body: JSON.stringify({ delegation: row.delegation, action: row.provisioned ? 'reset' : 'create' })
               }, admin.accessToken)
               if (result.verified !== true) throw new Error('La cuenta no confirmó las pruebas de acceso.')
-              clearTemporaryPasswordInput()
               await refreshSatAccounts()
               if (row.provisioned) await loadPasswordHistory(getAdminSession())
               status.textContent = `${displayDelegationName(result.delegation)} · ${row.provisioned ? 'Contraseña restablecida' : 'Cuenta creada'}. Guardá la clave temporal ahora; no quedará guardada en el SAT.${result.auditPending ? ' El registro del historial está pendiente de confirmación.' : ''}`

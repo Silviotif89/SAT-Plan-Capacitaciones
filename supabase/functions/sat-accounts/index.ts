@@ -182,7 +182,7 @@ Deno.serve(async (request) => {
     if (!officialDelegations.has(delegation)) {
       return respond(request, { error: "Seleccioná una de las 17 delegaciones oficiales." }, 400);
     }
-    if (requestedPassword !== undefined &&
+    if (action === "create" && requestedPassword !== undefined &&
       (typeof requestedPassword !== "string" || requestedPassword.length < 8 || requestedPassword.length > 72 ||
         !/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?: [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*\*\d{4}$/.test(requestedPassword))) {
       return respond(request, { error: "Usá el formato nombre*año, con cuatro dígitos al final." }, 400);
@@ -198,9 +198,13 @@ Deno.serve(async (request) => {
 
     if (action === "reset") {
       if (!account.auth_user_id) return respond(request, { error: "Cuenta sin configurar" }, 409);
-      const temporaryPassword = typeof requestedPassword === "string"
-        ? requestedPassword
-        : "Sat!" + crypto.randomUUID() + "9";
+      const temporaryPassword = Deno.env.get("SAT_RESET_TEMP_PASSWORD");
+      if (
+        !temporaryPassword || temporaryPassword.length < 8 || temporaryPassword.length > 72 ||
+        !/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?: [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*\*\d{4}$/.test(temporaryPassword)
+      ) {
+        return respond(request, { error: "La contraseña temporal institucional no está configurada en Supabase. No se cambió la contraseña." }, 503);
+      }
       const audit = await supabase.rpc("sat_service_start_password_reset", {
         p_delegation: delegation,
         p_admin_id: user.id,

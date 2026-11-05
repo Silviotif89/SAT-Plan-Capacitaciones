@@ -164,10 +164,7 @@
     <section id="satAccounts" class="sat-access" hidden>
       <h2>Usuarios y Contraseñas</h2>
       <p>Administrá el acceso de cada delegación desde su propia fila. Por seguridad, las contraseñas vigentes no se pueden consultar.</p>
-      <div class="sat-temp-passwords">
-        <label>Contraseña temporal opcional<input id="satTempPasswordGeneral" type="password" autocomplete="new-password" minlength="8" maxlength="72" placeholder="Dejala vacía para generar una"></label>
-      </div>
-      <p class="sat-temp-password-note">Podés escribir una contraseña temporal con formato nombre*año, o dejar el campo vacío para generar una distinta y segura. La clave nueva se muestra una sola vez después de crear o restablecer una cuenta y se debe entregar a esa delegación.</p>
+      <p class="sat-temp-password-note">Al restablecer el acceso se usa la contraseña temporal institucional. Aparecerá una sola vez para que se la entregues a la delegación; la persona deberá cambiarla al ingresar.</p>
       <p id="satAccountsMessage" role="status"></p>
       <div id="satAccountsList"></div>
       <section class="password-reset-history" aria-labelledby="passwordHistoryHeading">
