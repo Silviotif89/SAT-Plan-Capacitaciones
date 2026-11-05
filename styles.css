@@ -357,3 +357,24 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important}
 @media(max-width:620px){#delegateView .page-heading{gap:14px}#delegateView .delegate-session-actions{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch}#delegateView .delegate-period-picker{width:100%}#delegateView .delegate-account-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}#delegateView .delegate-account-actions .button{min-height:48px;padding:9px 7px;font-size:.82rem}#delegateView .delegate-step-progress{gap:5px}#delegateView .delegate-step-progress li{flex-direction:column;align-items:flex-start;gap:4px;font-size:.78rem}#delegateView .delegate-step-progress li>span{width:34px;height:34px}#delegateView .step-heading{gap:10px}#delegateView .step-number{width:38px;height:38px}#delegateView .step-heading p{font-size:.92rem}#delegateView .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}#delegateView .metrics article{min-height:78px;padding:10px}#delegateView .metrics strong{font-size:1.15rem}#delegateView .step-actions,#delegateView .step-actions-end{display:grid;grid-template-columns:1fr;justify-content:stretch}#delegateView .step-actions .button{width:100%;min-height:54px}#delegateView .step-save-draft{grid-row:2}#delegateView .submit-panel .step-actions #step3Back{grid-row:2}#delegateView .delegate-period-panel{right:0;left:0;width:100%}#delegateView .delegate-period-controls{grid-template-columns:minmax(72px,.8fr) minmax(135px,1.4fr) minmax(72px,.8fr);gap:5px}#delegateView .delegate-period-controls>button{min-height:54px;padding:7px 4px;font-size:.77rem}#delegateView .delegate-period-controls>button>span{overflow-wrap:anywhere}#delegateView .delegate-month-choice{min-height:51px;font-size:.87rem}#delegateView .download-panel{padding:15px}#delegateView .download-actions{width:100%}.submit-confirm-dialog .dialog-actions{display:grid;grid-template-columns:1fr}.submit-confirm-dialog .dialog-actions .button{width:100%;min-height:52px}}
 @media(max-width:370px){#delegateView .delegate-period-controls{grid-template-columns:minmax(64px,.75fr) minmax(125px,1.5fr) minmax(64px,.75fr)}#delegateView .delegate-period-controls>button{font-size:.72rem}#delegateView .delegate-month-choice{font-size:.81rem}}
 [hidden]{display:none!important}
+#satAccounts .password-reset-history{margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--sat-stroke,#dce6f2)}
+#satAccounts .password-history-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;margin-bottom:.75rem}
+#satAccounts .password-history-heading h3{margin:0;color:var(--sat-deep,#123b7a);font-size:1.1rem}
+#satAccounts .password-history-heading p{margin:.35rem 0 0;color:#526685;line-height:1.5}
+#satAccounts .password-history-heading label{display:grid;gap:.3rem;min-width:min(100%,15rem);color:#23456f;font-weight:700}
+#satAccounts .password-history-heading select{min-height:2.75rem;padding:.45rem .7rem;border:1px solid #cedbef;border-radius:.65rem;background:#fff;color:#123b7a}
+#satAccounts .password-history-list{display:grid;gap:.35rem}
+#satAccounts .password-history-row{display:grid;grid-template-columns:minmax(8rem,1fr) minmax(9rem,1fr) minmax(10rem,1fr) minmax(8rem,.7fr);align-items:center;gap:.75rem;padding:.75rem;border-bottom:1px solid #e3ebf4;color:#23456f}
+#satAccounts .password-history-outcome{font-weight:750}
+#satAccounts .password-history-outcome.exitoso{color:#08784d}
+#satAccounts .password-history-outcome.fallido{color:#a72d4b}
+#satAccounts .password-history-outcome.iniciado{color:#8a6415}
+#satPasswordRevealDialog{position:fixed;inset:0;margin:auto;width:min(42rem,calc(100vw - 2rem));max-height:min(85vh,48rem);overflow:auto}
+#satPasswordRevealDialog::backdrop{background:rgba(7,24,55,.55)}
+#satPasswordRevealDialog h2{margin:.35rem 2rem .5rem 0;color:#123b7a}
+#satPasswordRevealDialog>p{color:#526685;line-height:1.55}
+#satPasswordRevealDialog .sat-password-reveal-list{display:grid;gap:.6rem;margin:1rem 0}
+#satPasswordRevealDialog .sat-password-reveal-row{display:grid;grid-template-columns:minmax(7rem,1fr) minmax(9rem,1.2fr) auto;align-items:center;gap:.7rem;padding:.8rem;border:1px solid #dce6f2;border-radius:.7rem;background:#f7faff}
+#satPasswordRevealDialog .sat-password-reveal-row code{overflow-wrap:anywhere;color:#123b7a;font-weight:800;font-size:1rem}
+#satPasswordRevealDialog .dialog-close{position:absolute;top:.5rem;right:.5rem}
+@media(max-width:700px){#satAccounts .password-history-heading{align-items:stretch;flex-direction:column}#satAccounts .password-history-heading label{min-width:0}#satAccounts .password-history-row{grid-template-columns:1fr 1fr;gap:.4rem}#satPasswordRevealDialog .sat-password-reveal-row{grid-template-columns:1fr;align-items:stretch}#satPasswordRevealDialog .sat-password-reveal-row .button{min-height:2.8rem}}

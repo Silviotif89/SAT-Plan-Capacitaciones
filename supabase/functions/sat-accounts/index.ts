@@ -220,15 +220,24 @@ Deno.serve(async (request) => {
       const temporaryPassword = typeof requestedPassword === "string"
         ? requestedPassword
         : "Sat!" + crypto.randomUUID() + "9";
-      const prepared = await supabase.rpc("sat_service_prepare_reset", { target: delegation });
-      if (prepared.error) return respond(request, { error: "No se pudo preparar el restablecimiento" }, 409);
-      const reset = await supabase.auth.admin.updateUserById(account.auth_user_id, {
-        password: temporaryPassword,
+      const audit = await supabase.rpc("sat_service_start_password_reset", {
+        p_delegation: delegation,
+        p_admin_id: user.id,
       });
-      if (reset.error) {
-        return respond(request, { error: "El acceso quedó protegido. Volvé a intentar el restablecimiento." }, 409);
+      if (audit.error || typeof audit.data !== "string") {
+        return respond(request, { error: "No se pudo registrar el restablecimiento. No se cambió la contraseña." }, 409);
       }
+      const eventId = audit.data;
+      let resetOutcome: "EXITOSO" | "FALLIDO" = "FALLIDO";
       try {
+        const prepared = await supabase.rpc("sat_service_prepare_reset", { target: delegation });
+        if (prepared.error) throw new Error("No se pudo preparar el restablecimiento.");
+        const reset = await supabase.auth.admin.updateUserById(account.auth_user_id, {
+          password: temporaryPassword,
+        });
+        if (reset.error) {
+          throw new Error("El acceso quedó protegido. Volvé a intentar el restablecimiento.");
+        }
         await verifyResetAccount(
           supabaseUrl,
           publishableKey,
@@ -237,13 +246,39 @@ Deno.serve(async (request) => {
           temporaryPassword,
           account.enabled === true,
         );
-      } catch {
-        return respond(request, { error: "El restablecimiento no superó la prueba de acceso protegido." }, 409);
+        resetOutcome = "EXITOSO";
+      } catch (error) {
+        await supabase.rpc("sat_service_finish_password_reset", {
+          p_event_id: eventId,
+          p_admin_id: user.id,
+          p_outcome: "FALLIDO",
+        });
+        const message = error instanceof Error && error.message
+          ? error.message
+          : "El restablecimiento no superó la prueba de acceso protegido.";
+        return respond(request, { error: message }, 409);
+      }
+      const finished = await supabase.rpc("sat_service_finish_password_reset", {
+        p_event_id: eventId,
+        p_admin_id: user.id,
+        p_outcome: resetOutcome,
+      });
+      if (finished.error) {
+        // The temporary password must still reach the administrator because Auth
+        // already accepted it; the audit row remains visible as INICIADO for repair.
+        return respond(request, {
+          delegation,
+          temporaryPassword,
+          verified: true,
+          auditPending: true,
+          checks: { login: true, forcedChange: true, dataBlocked: true },
+        }, 200);
       }
       return respond(request, {
         delegation,
         temporaryPassword,
         verified: true,
+        auditPending: false,
         checks: { login: true, forcedChange: true, dataBlocked: true },
       });
     }
