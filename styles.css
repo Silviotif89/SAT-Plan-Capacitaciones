@@ -369,6 +369,14 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important}
 #satAccounts .password-history-heading label{display:grid;gap:.3rem;min-width:min(100%,15rem);color:#23456f;font-weight:700}
 #satAccounts .password-history-heading select{min-height:2.75rem;padding:.45rem .7rem;border:1px solid #cedbef;border-radius:.65rem;background:#fff;color:#123b7a}
 #satAccounts .password-history-list{display:grid;gap:.35rem}
+.admin-edit-permission{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 14px;padding:13px 15px;border:1px solid #d9e5f1;border-radius:12px;background:#f6faff}
+.admin-edit-permission-copy{display:grid;gap:4px;min-width:0}
+.admin-edit-permission-copy strong{color:#123b7a;font-size:.95rem}
+.admin-edit-permission-copy small{color:#536b87;font-size:.83rem;line-height:1.4}
+.admin-edit-permission-status{flex:none;padding:6px 9px;border-radius:999px;background:#fff2d1;color:#795d16;font-size:.78rem;font-weight:800}
+.admin-edit-permission-status.is-enabled{background:#def4e8;color:#1f704d}
+.admin-edit-permission .button{min-height:48px;max-width:100%;white-space:normal}
+@media(max-width:520px){.admin-edit-permission{align-items:stretch;flex-direction:column;gap:9px}.admin-edit-permission-status{align-self:flex-start}.admin-edit-permission .button{width:100%;min-height:52px}}
 #satAccounts .password-history-row{display:grid;grid-template-columns:minmax(8rem,1fr) minmax(9rem,1fr) minmax(10rem,1fr) minmax(8rem,.7fr);align-items:center;gap:.75rem;padding:.75rem;border-bottom:1px solid #e3ebf4;color:#23456f}
 #satAccounts .password-history-outcome{font-weight:750}
 #satAccounts .password-history-outcome.exitoso{color:#08784d}
