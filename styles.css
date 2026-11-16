@@ -397,3 +397,17 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important}
 #satPasswordRevealDialog .sat-password-reveal-row code{overflow-wrap:anywhere;color:#123b7a;font-weight:800;font-size:1rem}
 #satPasswordRevealDialog .dialog-close{position:absolute;top:.5rem;right:.5rem}
 @media(max-width:700px){#satAccounts .password-history-heading{align-items:stretch;flex-direction:column}#satAccounts .password-history-heading label{min-width:0}#satAccounts .password-history-row{grid-template-columns:1fr 1fr;gap:.4rem}#satPasswordRevealDialog .sat-password-reveal-row{grid-template-columns:1fr;align-items:stretch}#satPasswordRevealDialog .sat-password-reveal-row .button{min-height:2.8rem}}
+
+.admin-period-tools{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-top:.45rem}
+.admin-period-tools .period-picker{margin:.1rem 0}
+.button.admin-reset-month{border:1px solid #f0b7c4;background:#fff1f4;color:#982143;min-height:42px}
+.button.admin-reset-month:hover,.button.admin-danger:hover{background:#ffe4eb}
+.admin-dialog .dialog-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:18px}
+.admin-dialog .dialog-actions .button{min-height:44px}
+@media(max-width:760px){
+  .admin-period-tools{width:100%;align-items:stretch;flex-direction:column}
+  .admin-period-tools .period-picker{width:100%}
+  .admin-period-tools .admin-reset-month{width:100%;min-height:48px}
+  .admin-dialog .dialog-actions{display:grid;grid-template-columns:1fr}
+  .admin-dialog .dialog-actions .button{width:100%;min-height:50px}
+}

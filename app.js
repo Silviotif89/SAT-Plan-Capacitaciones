@@ -1146,6 +1146,45 @@
     document.addEventListener('click', event => { if (!picker.contains(event.target)) close() })
     render()
   }
+  function requestAdminMonthReset() {
+    const session = getAdminSession()
+    if (!session) { toast('Iniciá sesión como administrador para reiniciar un mes.'); return }
+    const month = periodLabel(adminPeriod)
+    const monthLower = month.toLocaleLowerCase('es-NI')
+    $('adminResetMonthTitle').textContent = `¿Reiniciar ${month}?`
+    $('adminResetMonthSummary').textContent = `Esta acción borrará todo lo que se ingresó durante el mes de ${monthLower} en las 17 delegaciones: planes, capacitaciones y cancelaciones. No afecta otros meses y no se puede deshacer.`
+    $('confirmAdminResetMonth').textContent = `Sí, reiniciar ${monthLower}`
+    $('adminResetMonthDialog').showModal()
+  }
+  async function confirmAdminMonthReset() {
+    const session = getAdminSession()
+    const dialog = $('adminResetMonthDialog')
+    const button = $('confirmAdminResetMonth')
+    if (!session) { dialog.close(); toast('La sesión administrativa expiró. Iniciá sesión de nuevo.'); return }
+    const period = adminPeriod
+    const monthLower = periodLabel(period).toLocaleLowerCase('es-NI')
+    button.disabled = true
+    button.textContent = `Reiniciando ${monthLower}…`
+    try {
+      const result = await api('/rest/v1/rpc/sat_admin_reset_month', {
+        method: 'POST',
+        body: JSON.stringify({ target_period: `${period}-01` })
+      }, session.accessToken)
+      for (const key of Object.keys(store.plans)) {
+        if ((period === '2026-11' && DELEGATIONS.includes(key)) || key.endsWith(`|${period}`)) delete store.plans[key]
+      }
+      persistLocal()
+      dialog.close()
+      await showAdmin(session.accessToken)
+      toast(`Se reinició ${monthLower}. Se eliminaron ${Number(result?.plans_deleted || 0)} registros.`)
+    } catch (error) {
+      toast(`No se pudo reiniciar ${monthLower}: ${error.message}`)
+    } finally {
+      button.disabled = false
+      button.textContent = `Sí, reiniciar ${monthLower}`
+    }
+  }
+
   async function showAdmin(token) {
     $('headerDelegationName').textContent = 'Consola DDT'
     $('selectedPeriodLabel').hidden = false
@@ -1538,6 +1577,8 @@
     $('downloadWord').onclick = event => exportPlan('word', plan(), event.currentTarget)
     $('downloadExcel').onclick = event => exportPlan('excel', plan(), event.currentTarget)
     $('adminAccess').onclick = async () => { const session = getAdminSession(); if (session) await showAdmin(session.accessToken); else $('adminDialog').showModal() }
+    $('adminResetMonth').onclick = requestAdminMonthReset
+    $('confirmAdminResetMonth').onclick = confirmAdminMonthReset
     $('adminLoginForm').onsubmit = adminLogin
     $('assignDdtStaff').onclick = openAssignmentDialog
     $('adminPlanDdt').onclick = openPlanDdt

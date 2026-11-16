@@ -2,6 +2,10 @@
 
 Formulario en línea para que las 17 delegaciones registren su plan de capacitaciones de noviembre. Cada delegación guarda un único plan, puede actualizarlo desde el mismo navegador y la DDT puede ver el consolidado desde **Acceso Admin**.
 
+## Reiniciar un mes (administración)
+
+En la consola DDT, el botón **Reiniciar mes** borra los planes y capacitaciones del período seleccionado, incluidas las cancelaciones registradas. Antes de borrar, muestra una confirmación con el nombre del mes y el alcance de la acción. La función segura de base de datos está definida en `supabase/migrations/20261116000000_sat_admin_reset_month.sql`.
+
 ## Qué pide el formulario
 
 Además de la información del ejemplo recibido, se incorporaron los datos necesarios para consolidar y dar seguimiento sin inventar información:
