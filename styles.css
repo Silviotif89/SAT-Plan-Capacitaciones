@@ -411,3 +411,31 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important}
   .admin-dialog .dialog-actions{display:grid;grid-template-columns:1fr}
   .admin-dialog .dialog-actions .button{width:100%;min-height:50px}
 }
+
+#satAccounts .sat-contact-book{margin:1.25rem 0;padding:1rem;border:1px solid var(--sat-stroke,#dce6f2);border-radius:14px;background:#f8fbff}
+#satAccounts .sat-contact-book-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.6rem}
+#satAccounts .sat-contact-book-heading h3{margin:0;color:var(--sat-deep,#123b7a);font-size:1.08rem}
+#satAccounts .sat-contact-book-heading p{margin:.35rem 0 0;color:#526685;line-height:1.45}
+#satAccounts #satContactBookStatus{margin:.65rem 0;color:#526685;font-weight:700}
+#satAccounts .sat-contact-table-wrap{overflow-x:auto}
+#satAccounts .sat-contact-table{width:100%;min-width:620px;border-collapse:collapse;color:#23456f}
+#satAccounts .sat-contact-table th,#satAccounts .sat-contact-table td{padding:.55rem;border-bottom:1px solid #e3ebf4;text-align:left;vertical-align:middle}
+#satAccounts .sat-contact-table th{font-size:.76rem;color:#526685}
+#satAccounts .sat-contact-table td:first-child{white-space:nowrap}
+#satAccounts .sat-contact-table input{min-height:42px;padding:.45rem .6rem}
+#satAccounts .sat-contact-complete{color:#08784d;font-weight:750}
+#satAccounts .sat-contact-pending{color:#9b6a12;font-weight:750}
+#satAccounts .sat-contact-table .button{min-height:40px;padding:.55rem .8rem}
+@media(max-width:650px){
+  #satAccounts .sat-contact-book-heading{align-items:stretch;flex-direction:column}
+  #satAccounts .sat-contact-book-heading .button{width:100%;min-height:46px}
+  #satAccounts .sat-contact-table{min-width:0}
+  #satAccounts .sat-contact-table thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  #satAccounts .sat-contact-table,#satAccounts .sat-contact-table tbody,#satAccounts .sat-contact-table tr{display:block;width:100%}
+  #satAccounts .sat-contact-table tr{margin:.65rem 0;padding:.65rem;border:1px solid #e3ebf4;border-radius:10px;background:#fff}
+  #satAccounts .sat-contact-table td{display:grid;grid-template-columns:5.7rem minmax(0,1fr);gap:.55rem;padding:.45rem .1rem;border-bottom:1px solid #edf1f6}
+  #satAccounts .sat-contact-table td::before{content:attr(data-label);color:#526685;font-size:.75rem;font-weight:750}
+  #satAccounts .sat-contact-table td:last-child{border-bottom:0}
+  #satAccounts .sat-contact-table input{width:100%;min-width:0}
+  #satAccounts .sat-contact-table .button{width:100%}
+}

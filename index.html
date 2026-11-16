@@ -166,6 +166,19 @@
       <p>Administrá el acceso de cada delegación desde su propia fila. Por seguridad, las contraseñas vigentes no se pueden consultar.</p>
       <p class="sat-temp-password-note">Al restablecer el acceso se usa la contraseña temporal institucional. Aparecerá una sola vez para que se la entregues a la delegación; la persona deberá cambiarla al ingresar.</p>
       <p id="satAccountsMessage" role="status"></p>
+      <section class="sat-contact-book" aria-labelledby="satContactBookTitle">
+        <div class="sat-contact-book-heading">
+          <div><h3 id="satContactBookTitle">Contactos de las delegaciones</h3><p>Datos tomados de los planes de noviembre de 2026. Revisá los pendientes antes de compartir la lista.</p></div>
+          <button class="button secondary" id="satContactDownload" type="button">Descargar CSV</button>
+        </div>
+        <p id="satContactBookStatus" role="status" aria-live="polite">Cargando contactos…</p>
+        <div class="sat-contact-table-wrap">
+          <table class="sat-contact-table">
+            <thead><tr><th>Delegación</th><th>Nombre</th><th>Teléfono</th><th>Origen</th><th>Acción</th></tr></thead>
+            <tbody id="satContactRows"></tbody>
+          </table>
+        </div>
+      </section>
       <div id="satAccountsList"></div>
       <section class="password-reset-history" aria-labelledby="passwordHistoryHeading">
         <div class="password-history-heading"><div><h3 id="passwordHistoryHeading">Historial de restablecimientos</h3><p>Solo muestra cuándo se cambió una contraseña y quién lo hizo. No guarda las contraseñas.</p></div>

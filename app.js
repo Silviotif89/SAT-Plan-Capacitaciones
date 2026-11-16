@@ -40,6 +40,7 @@
   let activeDelegationStep = 1
   let delegationCanEdit = false
   let adminRows = []
+  let satContactRows = []
   let ddtActivities = []
   let savingPlan = false
   let pendingNoActivitiesSubmission = false
@@ -970,6 +971,103 @@
           : `No se pudo cargar el historial: ${error.message}`
       }
     }
+    async function refreshSatContacts(admin) {
+      const root = $('satContactRows')
+      const status = $('satContactBookStatus')
+      if (!admin || !root || !status) return
+      status.textContent = 'Cargando contactos…'
+      try {
+        const rows = (await rpc('sat_admin_contact_book', admin.accessToken))
+          .filter(row => DELEGATIONS.includes(row.delegation))
+          .sort((a, b) => DELEGATIONS.indexOf(a.delegation) - DELEGATIONS.indexOf(b.delegation))
+        satContactRows = rows
+        root.replaceChildren(...rows.map(row => {
+          const label = displayDelegationName(row.delegation)
+          const tr = document.createElement('tr')
+          const delegationCell = document.createElement('td')
+          delegationCell.dataset.label = 'Delegación'
+          delegationCell.append(text('strong', label))
+          const nameCell = document.createElement('td')
+          nameCell.dataset.label = 'Nombre'
+          const nameInput = document.createElement('input')
+          nameInput.type = 'text'
+          nameInput.maxLength = 160
+          nameInput.value = row.contact_name || ''
+          nameInput.setAttribute('aria-label', 'Nombre del contacto de ' + label)
+          nameInput.placeholder = 'Nombre completo'
+          nameCell.append(nameInput)
+          const phoneCell = document.createElement('td')
+          phoneCell.dataset.label = 'Teléfono'
+          const phoneInput = document.createElement('input')
+          phoneInput.type = 'tel'
+          phoneInput.maxLength = 40
+          phoneInput.value = row.phone || ''
+          phoneInput.setAttribute('aria-label', 'Teléfono del contacto de ' + label)
+          phoneInput.placeholder = 'Número de teléfono'
+          phoneCell.append(phoneInput)
+          const complete = Boolean(String(row.contact_name || '').trim() && String(row.phone || '').trim())
+          const originCell = document.createElement('td')
+          originCell.dataset.label = 'Origen'
+          originCell.append(text('span', complete ? (row.source_period ? 'Plan noviembre 2026' : 'Actualizado por DDT') : 'Pendiente', complete ? 'sat-contact-complete' : 'sat-contact-pending'))
+          const actionCell = document.createElement('td')
+          actionCell.dataset.label = 'Acción'
+          const save = adminButton('Guardar', async event => {
+            const button = event.currentTarget
+            const contactName = nameInput.value.trim()
+            const phone = phoneInput.value.trim()
+            if (!contactName || !phone) {
+              status.textContent = 'Completá el nombre y el teléfono antes de guardar.'
+              return
+            }
+            button.disabled = true
+            button.textContent = 'Guardando…'
+            try {
+              await rpc('sat_admin_update_contact', admin.accessToken, {
+                target_delegation: row.delegation,
+                target_name: contactName,
+                target_phone: phone
+              })
+              await refreshSatContacts(admin)
+              status.textContent = 'Contacto actualizado: ' + label + '.'
+            } catch (error) {
+              status.textContent = 'No se pudo guardar ' + label + ': ' + error.message
+              button.disabled = false
+              button.textContent = 'Guardar'
+            }
+          }, 'button secondary')
+          actionCell.append(save)
+          tr.append(delegationCell, nameCell, phoneCell, originCell, actionCell)
+          return tr
+        }))
+        const completeCount = rows.filter(row => String(row.contact_name || '').trim() && String(row.phone || '').trim()).length
+        const pending = rows.filter(row => !(String(row.contact_name || '').trim() && String(row.phone || '').trim())).map(row => displayDelegationName(row.delegation))
+        status.textContent = completeCount + ' de ' + rows.length + ' contactos completos.' + (pending.length ? ' Pendientes: ' + pending.join(', ') + '.' : '')
+      } catch (error) {
+        satContactRows = []
+        root.replaceChildren()
+        status.textContent = 'No se pudo cargar el directorio: ' + error.message
+      }
+    }
+    $('satContactDownload').onclick = () => {
+      if (!satContactRows.length) { $('satContactBookStatus').textContent = 'No hay contactos disponibles para descargar.'; return }
+      const csvCell = value => '"' + String(value ?? '').replaceAll('"', '""') + '"'
+      const lines = [
+        ['Delegación', 'Nombre', 'Teléfono', 'Origen'].map(csvCell).join(','),
+        ...satContactRows.map(row => [
+          displayDelegationName(row.delegation),
+          row.contact_name || '',
+          row.phone || '',
+          row.contact_name && row.phone ? (row.source_period ? 'Plan noviembre 2026' : 'Actualizado por DDT') : 'Pendiente'
+        ].map(csvCell).join(','))
+      ]
+      const file = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(file)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'contactos-delegaciones-noviembre-2026.csv'
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
     const refreshSatAccounts = async () => {
       const admin = getAdminSession()
       if (!admin) return
@@ -1014,6 +1112,7 @@
         }
       } catch (error) { status.textContent = error.message }
       await loadPasswordHistory(admin)
+      await refreshSatContacts(admin)
     }
     $('satAccountsLink').onclick = refreshSatAccounts
     $('satPasswordHistoryFilter').onchange = async () => {

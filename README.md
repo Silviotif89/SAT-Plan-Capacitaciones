@@ -2,6 +2,10 @@
 
 Formulario en línea para que las 17 delegaciones registren su plan de capacitaciones de noviembre. Cada delegación guarda un único plan, puede actualizarlo desde el mismo navegador y la DDT puede ver el consolidado desde **Acceso Admin**.
 
+## Directorio de contactos para mensajería interna
+
+La sección **Cuentas SAT** muestra los contactos de las delegaciones desde la tabla privada `sat_private.delegation_contact_book`. El primer llenado toma el nombre y teléfono del registro más reciente del plan de noviembre de 2026. Los datos quedan visibles solo para la administración DDT; las filas incompletas aparecen como pendientes. La sección permite corregir un contacto y descargar el directorio en CSV.
+
 ## Reiniciar un mes (administración)
 
 En la consola DDT, el botón **Reiniciar mes** borra los planes y capacitaciones del período seleccionado, incluidas las cancelaciones registradas. Antes de borrar, muestra una confirmación con el nombre del mes y el alcance de la acción. La función segura de base de datos está definida en `supabase/migrations/20261116000000_sat_admin_reset_month.sql`.
