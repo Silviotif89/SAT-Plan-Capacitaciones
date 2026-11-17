@@ -60,6 +60,12 @@
     if (!year || !month || month < 1 || month > 12) return 'Noviembre 2026'
     return `${periodMonths[month - 1]} ${year}`
   }
+  function isDateInPeriod(value, period = adminPeriod) {
+    const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''))
+    if (!date || `${date[1]}-${date[2]}` !== String(period || '').slice(0, 7)) return false
+    const year = Number(date[1]), month = Number(date[2]), day = Number(date[3])
+    return year > 0 && month >= 1 && month <= 12 && day >= 1 && day <= new Date(year, month, 0).getDate()
+  }
 
   function regionFor(delegation) { return Object.keys(REGIONS).find(region => REGIONS[region].includes(delegation)) || 'Pacífico' }
   function normalizeActivityProvider(activity) {
@@ -764,13 +770,16 @@
     if (!Array.isArray(rows) || !rows.length) throw new Error('No hay planes enviados disponibles para generar el Excel completo.')
     return rows.map(row => ({ ...row, period: row.period || `${adminPeriod}-01` }))
   }
-  async function loadAllSubmittedPlans(token) {
+  async function loadAllSubmittedPlans(token, period = adminPeriod) {
     const pageSize = 500
     const plans = []
     let offset = 0
     while (true) {
       const end = offset + pageSize - 1
-      const rows = await api(`/rest/v1/${TABLE}?status=eq.ENVIADO&select=*&order=delegation.asc`, { headers: { 'Range-Unit': 'items', Range: `${offset}-${end}` } }, token)
+      const endpoint = period === '2026-11'
+        ? `${TABLE}?status=eq.ENVIADO&select=*&order=delegation.asc`
+        : `sat_monthly_plans?period=eq.${period}-01&status=eq.ENVIADO&select=*&order=delegation.asc`
+      const rows = await api(`/rest/v1/${endpoint}`, { headers: { 'Range-Unit': 'items', Range: `${offset}-${end}` } }, token)
       if (!Array.isArray(rows)) throw new Error('Supabase devolvió una respuesta inesperada al consultar los planes enviados.')
       if (rows.length > pageSize) throw new Error('Supabase no respetó el rango de consulta; se detuvo la carga para evitar registros repetidos.')
       plans.push(...rows)
@@ -779,13 +788,13 @@
     }
     return plans
   }
-  async function loadDdtActivities() {
+  async function loadDdtActivities(period = adminPeriod) {
     if (!configured) throw new Error('No hay conexión con Supabase para consultar el Plan DDT.')
     const session = getAdminSession()
     if (!session) throw new Error('La sesión administrativa expiró. Iniciá sesión nuevamente.')
-    const plans = await loadAllSubmittedPlans(session.accessToken)
+    const plans = await loadAllSubmittedPlans(session.accessToken, period)
     const globalPlanActivities = plans.flatMap(row => (Array.isArray(row.activities) ? row.activities : [])
-      .filter(activity => activity && !activity.draft && String(activity.date || '').startsWith('2026-11-'))
+      .filter(activity => activity && !activity.draft && !isCancelled(activity) && isDateInPeriod(activity.date, period))
       .map(activity => ({ activity, delegation: row.delegation })))
     globalPlanActivities.sort((a, b) => String(a.activity.date || '').localeCompare(String(b.activity.date || '')) || String(a.activity.startTime || '').localeCompare(String(b.activity.startTime || '')) || String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' }))
     const globalNumberByActivity = new Map(globalPlanActivities.map((entry, index) => [entry.activity, index + 1]))
@@ -794,7 +803,7 @@
     plans.forEach(row => {
       if (row.status !== 'ENVIADO' || !Array.isArray(row.activities)) return
       row.activities.forEach(activity => {
-        if (!activity || activity.draft || isCancelled(activity) || !/^2026-11-(0[1-9]|[12]\d|30)$/.test(String(activity.date || ''))) return
+        if (!activity || activity.draft || isCancelled(activity) || !isDateInPeriod(activity.date, period)) return
         if (String(activity.trainingProvider || '').trim() !== 'INTUR CENTRAL') return
         const activityId = activity.id == null ? '' : String(activity.id).trim()
         if (activityId && seenIds.has(activityId)) return
@@ -855,11 +864,13 @@
   async function openPlanDdt() {
     if (!getAdminSession()) { toast('La sesión administrativa expiró. Iniciá sesión nuevamente.'); return }
     $('adminDashboard').hidden = true; $('planDdtView').hidden = false
+    $('planDdtTitle').textContent = `Plan DDT — ${periodLabel(adminPeriod)}`
+    $('ddtEmpty').textContent = `No hay capacitaciones asignadas a INTUR CENTRAL para ${periodLabel(adminPeriod).toLocaleLowerCase('es-NI')}.`
     ddtActivities = []
     $('ddtLoading').hidden = false; $('ddtError').hidden = true; $('ddtSummary').hidden = true; $('ddtEmpty').hidden = true
     $('ddtActivityGroups').replaceChildren(); $('downloadDdtWord').disabled = true
     try {
-      renderDdtActivities(await loadDdtActivities())
+      renderDdtActivities(await loadDdtActivities(adminPeriod))
     } catch (error) {
       $('ddtError').textContent = error.message
       $('ddtError').hidden = false
@@ -870,12 +881,12 @@
     const originalLabel = button.textContent
     try {
       button.disabled = true; button.textContent = 'Actualizando datos…'
-      const latest = await loadDdtActivities()
+      const latest = await loadDdtActivities(adminPeriod)
       renderDdtActivities(latest)
-      if (!latest.length) { toast('No hay capacitaciones asignadas a INTUR CENTRAL para noviembre 2026.'); return }
+      if (!latest.length) { toast(`No hay capacitaciones asignadas a INTUR CENTRAL para ${periodLabel(adminPeriod).toLocaleLowerCase('es-NI')}.`); return }
       if (!exporter) throw new Error('No se pudo cargar el generador de Word. Actualizá la página e intentá nuevamente.')
       button.disabled = true; button.textContent = 'Generando Word…'
-      await exporter(latest)
+      await exporter(latest, adminPeriod)
       toast('Plan DDT de noviembre 2026 descargado.')
     } catch (error) { toast(`No se pudo generar el Plan DDT: ${error.message}`) }
     finally { button.textContent = originalLabel; button.disabled = ddtActivities.length === 0 }
@@ -916,9 +927,9 @@
       ddtFacilitator: activity.ddtFacilitator || '', projectedParticipants: Number(activity.projectedParticipants) || 0,
       observations: [activity.observations || '', activity.additionalDates ? `Fechas adicionales: ${activity.additionalDates}` : ''].filter(Boolean).join(' · '),
     })))
-    const payload = { format: 'sat-intur-monthly-plan', version: 1, source: 'SAT Plan Capacitaciones', period: '2026-11', exportedAt: now(), activities }
+    const payload = { format: 'sat-intur-monthly-plan', version: 1, source: 'SAT Plan Capacitaciones', period: adminPeriod, exportedAt: now(), activities }
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), link = document.createElement('a')
-    link.href = url; link.download = 'SAT_Plan_Capacitaciones_noviembre_2026.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+    link.href = url; link.download = `SAT_Plan_Capacitaciones_${adminPeriod.replace('-', '_')}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
     toast(`${activities.length} capacitaciones listas para importar en SAT Central.`)
   }
   async function adminLogin(event) {
@@ -1323,7 +1334,10 @@
     $('adminDownloadComplete').textContent = `▣ Descargar plan completo ${periodLabel(period).toLocaleLowerCase('es-NI')}`
     $('adminDownloadExcelComplete').textContent = `▦ Descargar Excel completo ${periodLabel(period).toLocaleLowerCase('es-NI')}`
     $('adminPeriodNotice').hidden = legacy
-    for (const id of ['assignDdtStaff', 'adminCancelledOpen', 'adminPlanDdt']) $(id).disabled = !legacy
+    const cancelledMonth = $('cancelledMonth')
+    const previousCancelledMonth = cancelledMonth.value
+    cancelledMonth.replaceChildren(new Option('Todo el período', ''), new Option(periodLabel(period), period))
+    cancelledMonth.value = previousCancelledMonth === period ? period : ''
     const endpoint = legacy ? TABLE + '?select=*' : 'sat_monthly_plans?period=eq.' + period + '-01&select=*'
     const request = ++adminRequest
     adminRows = []
@@ -1389,16 +1403,19 @@
   }
   function renderAssignments() {
     const root = $('assignmentList'); root.replaceChildren()
+    const period = adminPeriod
+    const [year, month] = period.split('-').map(Number)
+    const monthDays = new Date(year, month, 0).getDate()
     const assignments = adminRows.flatMap(row => (row.activities || []).map((activity, index) => ({ row, activity, index })).filter(({ activity }) => isCentralTraining(activity) && !isCancelled(activity)))
     if (!assignments.length) {
       root.append(text('div', 'Aún no hay capacitaciones registradas con “INTUR CENTRAL” como institución que imparte.', 'assignment-empty'))
       return
     }
     const heading = document.createElement('div'); heading.className = 'assignment-calendar-heading'
-    heading.append(text('strong', 'Noviembre 2026'), text('small', `${assignments.length} capacitación${assignments.length === 1 ? '' : 'es'} de INTUR CENTRAL por asignar o revisar.`))
-    const inNovember = entry => /^2026-11-(0[1-9]|[12]\d|30)$/.test(entry.activity.date || '')
+    heading.append(text('strong', periodLabel(period)), text('small', `${assignments.length} capacitación${assignments.length === 1 ? '' : 'es'} de INTUR CENTRAL por asignar o revisar.`))
+    const inPeriod = entry => isDateInPeriod(entry.activity.date, period)
     const assignedCount = Object.fromEntries(DDT_FACILITATORS.map(person => [facilitatorKey(person), 0]))
-    assignments.filter(inNovember).forEach(entry => {
+    assignments.filter(inPeriod).forEach(entry => {
       const key = facilitatorKey(entry.activity.ddtFacilitator)
       if (Object.prototype.hasOwnProperty.call(assignedCount, key)) assignedCount[key] += 1
     })
@@ -1409,16 +1426,19 @@
       badge.append(text('span', person), text('strong', `${count} capacitación${count === 1 ? '' : 'es'}`))
       counter.append(badge)
     })
-    const calendar = document.createElement('section'); calendar.className = 'assignment-calendar'; calendar.setAttribute('aria-label', 'Calendario de asignación DDT de noviembre de 2026')
+    const calendar = document.createElement('section'); calendar.className = 'assignment-calendar'; calendar.setAttribute('aria-label', `Calendario de asignación DDT de ${periodLabel(period)}`)
     ;['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].forEach(day => calendar.append(text('div', day, 'assignment-weekday')))
     const byDate = new Map(), withoutDate = []
     assignments.forEach(entry => {
-      if (inNovember(entry)) {
+      if (inPeriod(entry)) {
         const entries = byDate.get(entry.activity.date) || []; entries.push(entry); byDate.set(entry.activity.date, entries)
       } else withoutDate.push(entry)
     })
-    for (let day = 1; day <= 30; day += 1) {
-      const key = `2026-11-${String(day).padStart(2, '0')}`
+    for (let blank = 0; blank < new Date(year, month - 1, 1).getDay(); blank += 1) {
+      const emptyCell = document.createElement('div'); emptyCell.className = 'assignment-day assignment-day-empty'; emptyCell.setAttribute('aria-hidden', 'true'); calendar.append(emptyCell)
+    }
+    for (let day = 1; day <= monthDays; day += 1) {
+      const key = `${period}-${String(day).padStart(2, '0')}`
       const cell = document.createElement('div'); cell.className = 'assignment-day'
       cell.append(text('span', String(day), 'assignment-day-number'))
       ;(byDate.get(key) || []).forEach(entry => cell.append(assignmentCard(entry)))
@@ -1427,7 +1447,7 @@
     root.append(heading, counter, calendar)
     if (withoutDate.length) {
       const pending = document.createElement('section'); pending.className = 'assignment-pending'
-      pending.append(text('strong', 'Capacitaciones sin fecha válida de noviembre'))
+      pending.append(text('strong', `Capacitaciones sin fecha válida de ${periodLabel(period).toLocaleLowerCase('es-NI')}`))
       withoutDate.forEach(entry => pending.append(assignmentCard(entry)))
       root.append(pending)
     }
@@ -1518,14 +1538,17 @@
     })
   }
   function buildAdminEditor(row, card, item = null, index = -1, openButton = null) {
+    const rowPeriod = String(row.period || adminPeriod).slice(0, 7)
+    const [periodYear, periodMonth] = rowPeriod.split('-').map(Number)
+    const periodEnd = `${rowPeriod}-${String(new Date(periodYear, periodMonth, 0).getDate()).padStart(2, '0')}`
     const editor = document.createElement('div'); editor.className = 'admin-editor'
-    const draft = item ? clone(item) : { ...blankActivity(), draft: false }
+    const draft = item ? clone(item) : { ...blankActivity(), date: `${rowPeriod}-02`, draft: false }
     const grid = document.createElement('div'); grid.className = 'activity-grid'
     ADMIN_FIELDS.forEach(([key, title, kind, choices]) => {
       let input
       if (kind === 'select') { input = selectControl(choices, draft[key]); if (draft[key] && !choices.includes(draft[key])) input.add(new Option(draft[key], draft[key])) }
       else if (kind === 'textarea') { input = document.createElement('textarea'); input.value = draft[key] || '' }
-      else { input = inputControl(draft[key], kind); if (key === 'date') { input.min = '2026-11-01'; input.max = '2026-11-30' }; if (kind === 'number') input.min = '0' }
+      else { input = inputControl(draft[key], kind); if (key === 'date') { input.min = `${rowPeriod}-01`; input.max = periodEnd }; if (kind === 'number') input.min = '0' }
       input.oninput = () => { draft[key] = kind === 'number' ? Number(input.value) : input.value }
       grid.append(label(title, input, '', key === 'observations' ? 'full' : ['topic', 'location', 'participatingInstitutions', 'additionalDates'].includes(key) ? 'wide' : ''))
     })
@@ -1533,7 +1556,7 @@
     const saveLabel = item ? 'Guardar cambios' : 'Agregar capacitación al plan'
     buttons.append(adminButton(saveLabel, async () => {
       const required = ['activityType','topic','date','startTime','endTime','municipality','location','modality','trainingProvider','participatingInstitutions','responsible']
-      if (required.some(key => !String(draft[key] || '').trim()) || !String(draft.date || '').startsWith('2026-11-') || Number(draft.projectedParticipants) <= 0 || (draft.trainingProvider === 'INTUR CENTRAL' && !String(draft.ddtFacilitator || '').trim())) { toast('Completá todos los campos obligatorios; la fecha debe ser de noviembre de 2026.'); return }
+      if (required.some(key => !String(draft[key] || '').trim()) || !isDateInPeriod(draft.date, rowPeriod) || Number(draft.projectedParticipants) <= 0 || (draft.trainingProvider === 'INTUR CENTRAL' && !String(draft.ddtFacilitator || '').trim())) { toast(`Completá todos los campos obligatorios; la fecha debe corresponder a ${periodLabel(rowPeriod).toLocaleLowerCase('es-NI')}.`); return }
       const activities = clone(row.activities || [])
       if (item) activities[index] = draft
       else {
@@ -1556,7 +1579,7 @@
     $('adminDelegations').textContent = `${new Set(adminRows.map(row => row.delegation)).size} / 17`; $('adminActivities').textContent = totalActivities; $('adminCancelled').textContent = totalCancelled; $('adminParticipants').textContent = totalParticipants.toLocaleString('es-NI'); $('adminSubmitted').textContent = adminRows.filter(row => row.status === 'ENVIADO').length
     $('adminDownloadComplete').disabled = !adminRows.length
     $('adminDownloadExcelComplete').disabled = !adminRows.some(row => row.status === 'ENVIADO' && (row.activities || []).some(activity => !activity.draft))
-    $('adminDownloadCentral').disabled = adminPeriod !== '2026-11' || !adminRows.some(row => row.status === 'ENVIADO' && (row.activities || []).some(activity => !activity.draft))
+    $('adminDownloadCentral').disabled = !adminRows.some(row => row.status === 'ENVIADO' && (row.activities || []).some(activity => !activity.draft && !isCancelled(activity)))
     const root = $('adminList'); const expandedIds = new Set([...root.querySelectorAll('details[open]')].map(el => el.dataset.rowId)); root.replaceChildren()
     if (!filtered.length) { root.append(text('div', 'No hay registros para los filtros seleccionados.', 'admin-empty')); return }
     filtered.forEach(row => {

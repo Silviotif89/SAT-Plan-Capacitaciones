@@ -282,9 +282,13 @@
     return output
   }
   const withoutRenderedBreaks = paragraph => paragraph.replace(/<w:lastRenderedPageBreak\b[^>]*\/?\s*>/g, '')
-  const ddtWord = async activitiesForExport => {
+  const ddtWord = async (activitiesForExport, period) => {
     if (!window.PizZip) throw new Error('No se pudo cargar el lector de la plantilla institucional de Word.')
-    if (!Array.isArray(activitiesForExport) || !activitiesForExport.length) throw new Error('No hay capacitaciones asignadas a INTUR CENTRAL para noviembre 2026.')
+    if (!Array.isArray(activitiesForExport) || !activitiesForExport.length) throw new Error('No hay capacitaciones asignadas a INTUR CENTRAL para el período seleccionado.')
+    const inferredPeriod = String(period || activitiesForExport.find(activity => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(activity.date || '').slice(0, 7)))?.date?.slice(0, 7) || '2026-11')
+    const ddtPeriod = periodInfo({ period: inferredPeriod })
+    const [ddtYear] = inferredPeriod.split('-')
+    const ddtMonthUpper = ddtPeriod.title.split(' ')[0].toLocaleUpperCase('es-NI')
     const response = await fetch('assets/plan-ddt-template.docx')
     if (!response.ok) throw new Error('No se encontró la plantilla oficial del Plan DDT.')
     const zipFile = new window.PizZip(await response.arrayBuffer())
@@ -330,7 +334,7 @@
       if (!byDate.has(date)) byDate.set(date, [])
       byDate.get(date).push(activity)
     })
-    const title = titleTemplates.map((paragraph, index) => index === 2 ? replaceParagraphText(paragraph, paragraphText(paragraph).replace(/SEPTIEMBRE/i, 'NOVIEMBRE')) : paragraph)
+    const title = titleTemplates.map((paragraph, index) => index === 2 ? replaceParagraphText(paragraph, paragraphText(paragraph).replace(/\b(?:ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\b/iu, ddtMonthUpper).replace(/\b\d{4}\b/g, ddtYear)) : paragraph)
     let fallbackNumber = 0
     const content = [...byDate.entries()].map(([date, dailyActivities]) => {
       const heading = replaceParagraphText(cloneParagraph(templates.date), ddtDateLabel(date))
@@ -369,7 +373,7 @@
     const bodyOpenEnd = bodyMatch[0].indexOf('>') + 1
     const newDocument = `${original.slice(0, bodyMatch.index)}${bodyMatch[0].slice(0, bodyOpenEnd)}${replacementBody}</w:body>${original.slice(bodyMatch.index + bodyMatch[0].length)}`
     zipFile.file(documentPath, newDocument)
-    download(zipFile.generate({ type: 'uint8array', compression: 'DEFLATE' }), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'PLAN_DDT_NOVIEMBRE_2026.docx')
+    download(zipFile.generate({ type: 'uint8array', compression: 'DEFLATE' }), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', `PLAN_DDT_${ddtPeriod.slug}.docx`)
   }
   const columnLetter = index => String.fromCharCode(65 + index)
   const timeLabel = value => {
@@ -519,5 +523,5 @@
     const activities = allActivities.map(item => ({ ...item, globalNumber: numbers.get(item.id) })).sort((a, b) => String(a.delegation || '').localeCompare(String(b.delegation || ''), 'es', { sensitivity: 'base' }) || String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')))
     return { complete: true, period: rows[0]?.period || '2026-11-01', delegation: 'COMPLETO', activities }
   }
-  window.SATPlanExports={async word(plan){download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan))},async wordComplete(rows){const plan=completePlan(rows);download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan))},async ddtWord(activities){await ddtWord(activities)},async cancellationReport(report){return cancellationExportModule(report)},async excel(plan){download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan))},async excelComplete(rows){const plan=completePlan(rows);download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan))},async image(plan){download(await monthlyPlanImage(plan),'image/png',fileName('png',plan))}}
+  window.SATPlanExports={async word(plan){download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan))},async wordComplete(rows){const plan=completePlan(rows);download(await docxFromTemplate(plan),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',fileName('docx',plan))},async ddtWord(activities,period){await ddtWord(activities,period)},async cancellationReport(report){return cancellationExportModule(report)},async excel(plan){download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan))},async excelComplete(rows){const plan=completePlan(rows);download(await templateExcelWorkbook(plan),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',fileName('xlsx',plan))},async image(plan){download(await monthlyPlanImage(plan),'image/png',fileName('png',plan))}}
 })()

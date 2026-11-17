@@ -135,7 +135,7 @@
     <div class="period-controls"><button type="button" id="periodYearPrev" aria-label="Año anterior">‹</button><strong id="periodBrowseYear" aria-live="polite"></strong><button type="button" id="periodYearNext" aria-label="Año siguiente">›</button></div>
     <div id="periodMonths" class="period-months"></div>
   </div>
-</div><button class="button admin-reset-month" id="adminResetMonth" type="button">↻ Reiniciar mes</button></div><p id="adminPeriodNotice" role="status" hidden>Este período aún no está habilitado para registro.</p><p>Vista central de delegaciones, responsables y capacitaciones registradas.</p></div><div class="admin-action-stack"><div class="admin-main-actions"><button class="button word" id="adminDownloadComplete" type="button" disabled>▣ Descargar plan completo noviembre</button><button class="button excel" id="adminDownloadExcelComplete" type="button" disabled>▦ Descargar Excel completo noviembre</button><button class="button excel" id="adminDownloadCentral" type="button" disabled>Exportar para SAT Central</button><button class="button secondary" id="assignDdtStaff" type="button">👥 Asignar personal DDT</button><button class="button cancelled-action" id="adminCancelledOpen" type="button">⛔ Capacitaciones canceladas</button></div><div class="admin-session-actions"><button class="button plan-ddt" id="adminPlanDdt" type="button">▤ Plan DDT</button><button class="button ghost" id="adminLogout" type="button">Cerrar sesión</button></div></div></div>
+</div><button class="button admin-reset-month" id="adminResetMonth" type="button">↻ Reiniciar mes</button></div><p id="adminPeriodNotice" role="status" hidden>El registro territorial de este período no está habilitado; las consultas y acciones administrativas siguen disponibles.</p><p>Vista central de delegaciones, responsables y capacitaciones registradas.</p></div><div class="admin-action-stack"><div class="admin-main-actions"><button class="button word" id="adminDownloadComplete" type="button" disabled>▣ Descargar plan completo noviembre</button><button class="button excel" id="adminDownloadExcelComplete" type="button" disabled>▦ Descargar Excel completo noviembre</button><button class="button excel" id="adminDownloadCentral" type="button" disabled>Exportar para SAT Central</button><button class="button secondary" id="assignDdtStaff" type="button">👥 Asignar personal DDT</button><button class="button cancelled-action" id="adminCancelledOpen" type="button">⛔ Capacitaciones canceladas</button></div><div class="admin-session-actions"><button class="button plan-ddt" id="adminPlanDdt" type="button">▤ Plan DDT</button><button class="button ghost" id="adminLogout" type="button">Cerrar sesión</button></div></div></div>
       <section class="metrics admin-metrics">
         <article><span>🗺️</span><div><small>Delegaciones con registro</small><strong id="adminDelegations">0 / 17</strong></div></article>
         <article><span>📚</span><div><small>Capacitaciones</small><strong id="adminActivities">0</strong></div></article>
@@ -219,7 +219,7 @@
 
   <dialog id="cancelledDialog" class="cancelled-dialog">
     <div class="cancelled-dialog-head"><div><span class="eyebrow dark">Historial administrativo</span><h2>Capacitaciones canceladas</h2><p id="cancelledSummary">Consulta las cancelaciones registradas.</p></div><button class="dialog-close" id="cancelledClose" type="button" aria-label="Cerrar">×</button></div>
-    <div class="cancelled-filters"><label>Mes<select id="cancelledMonth"><option value="">Todos los meses</option><option value="2026-11">Noviembre 2026</option></select></label><label>Delegación<select id="cancelledDelegation"><option value="">Todas las delegaciones</option></select></label><button class="button word" id="cancelledDownload" type="button">▣ Descargar informe Word</button></div>
+    <div class="cancelled-filters"><label>Mes<select id="cancelledMonth"><option value="">Todo el período</option><option value="2026-11">Noviembre 2026</option></select></label><label>Delegación<select id="cancelledDelegation"><option value="">Todas las delegaciones</option></select></label><button class="button word" id="cancelledDownload" type="button">▣ Descargar informe Word</button></div>
     <div id="cancelledList" class="cancelled-list"></div>
   </dialog>
 
@@ -252,7 +252,7 @@
   <script src="config.js"></script>
   <script src="vendor/xlsx-js-style.min.js"></script>
   <script src="vendor/pizzip.min.js"></script>
-  <script src="plan-export.js"></script>
-  <script src="app.js?v=20261117-supabase-only-v4"></script>
+  <script src="plan-export.js?v=20261117-admin-period-actions-v1"></script>
+  <script src="app.js?v=20261117-admin-period-actions-v1"></script>
 </body>
 </html>
