@@ -1688,7 +1688,7 @@
     $('step2Back').onclick = () => showDelegationStep(1)
     $('saveDraftStep1').onclick = saveDraftToSupabase
     $('saveDraftStep2').onclick = saveDraftToSupabase
-    $('submitPlan').onclick = requestPlanSubmission
+    $('submitPlan').onclick = () => requestPlanSubmission(false)
     $('confirmSubmitPlan').onclick = async () => {
       const button = $('confirmSubmitPlan')
       button.disabled = true
