@@ -117,7 +117,7 @@
     const text = await response.text()
     let body = null
     try { body = text ? JSON.parse(text) : null } catch (_) { body = { message: text || `Error ${response.status}` } }
-    if (!response.ok) { const error = new Error(body?.message || body?.error_description || `Error ${response.status}`); error.status = response.status; throw error }
+    if (!response.ok) { const error = new Error(body?.message || body?.error_description || `Error ${response.status}`); error.status = response.status; error.code = body?.code || ''; throw error }
     return body
   }
   function activitiesFromRemote(row) { return (row.activities || []).map(item => normalizeActivityProvider(clone(item))) }
@@ -654,6 +654,7 @@
   async function savePlan(status, allowNoActivities = false) {
     if (savingPlan) return false
     const current = plan()
+    const submissionPeriod = selectedPlanPeriod
     const finalSubmission = status === 'ENVIADO' && current.status !== 'ENVIADO'
     const issues = status === 'ENVIADO' ? validatePlan(finalSubmission, allowNoActivities || isNoActivitiesDeclaration(current)) : []
     if (issues.length) { showIssuesInStep(issues, 2); toast('Completá los campos resaltados en rojo.'); return false }
@@ -710,6 +711,8 @@
         try {
           const latest = await getDelegationPlanRow()
           if (latest && matchesSavedPlan(latest, payload)) {
+            const attemptedVersion = current.remoteUpdatedAt || ''
+            const remoteVersionChanged = Boolean(attemptedVersion && latest.updated_at && latest.updated_at !== attemptedVersion)
             applyDelegationPlanRow(current, latest)
             renderPlan(); setDelegationControls()
             if (current.status === 'ENVIADO') {
@@ -720,8 +723,18 @@
               return true
             }
             if (current.status === 'BORRADOR') {
-              $('saveMessage').textContent = 'El borrador sí quedó guardado en Supabase, pero el envío a la DDT no se confirmó. Tus datos están seguros; volvé a presionar “Enviar plan a la DDT”.'
-              toast('Borrador guardado; reintentá el envío.')
+              const permissionDenied = error.status === 401 || error.status === 403 || error.code === '42501'
+              const periodName = periodLabel(submissionPeriod)
+              if (permissionDenied) {
+                $('saveMessage').textContent = `El borrador quedó guardado, pero Supabase rechazó el envío (${error.status || error.code}). La DDT debe revisar el acceso de ${current.delegation} para ${periodName}. No se envió.`
+                toast('Supabase rechazó el envío; la DDT debe revisar el acceso.')
+              } else if (remoteVersionChanged) {
+                $('saveMessage').textContent = `El borrador quedó guardado, pero cambió mientras se enviaba. Se actualizó la versión de ${periodName}; revisá los datos y volvé a enviar.`
+                toast('El borrador cambió; revisá los datos y reintentá.')
+              } else {
+                $('saveMessage').textContent = `El borrador quedó guardado, pero Supabase no aplicó el cambio a ENVIADO para ${periodName}. La DDT debe revisar la sesión y el permiso de envío de ${current.delegation}. No repitas el intento por ahora.`
+                toast('El envío no se aplicó; la DDT debe revisar el acceso.')
+              }
               return false
             }
           }
