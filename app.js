@@ -24,8 +24,9 @@
   const now = () => new Date().toISOString()
   const formatDateTime = value => value ? new Intl.DateTimeFormat('es-NI', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : 'Pendiente'
   const isCancelled = item => String(item?.status || '').toUpperCase() === 'CANCELADA'
-  const isNoActivitiesDeclaration = value => value?.status === 'ENVIADO' && Array.isArray(value.activities) && value.activities.length === 0
   const activeActivities = items => (items || []).filter(item => !item.draft && !isCancelled(item))
+  const hasActivitiesToSubmit = items => (items || []).some(item => item.draft || !isCancelled(item))
+  const isNoActivitiesDeclaration = value => value?.status === 'ENVIADO' && Array.isArray(value.activities) && !hasActivitiesToSubmit(value.activities)
   const cancelledActivities = items => (items || []).filter(isCancelled)
   const blankActivity = () => ({ id: makeId(), draft: true, activityType: 'Capacitación', topic: '', date: selectedPlanPeriod + '-02', additionalDates: '', startTime: '08:00', endTime: '12:00', municipality: '', location: '', modality: 'Presencial', trainingProvider: '', ddtFacilitator: '', participatingInstitutions: '', responsible: '', projectedParticipants: 25, observations: '' })
   const blankPlan = delegation => ({ remoteId: '', remoteUpdatedAt: '', editToken: makeId(), region: regionFor(delegation), delegation, registrantName: '', registrantRole: '', registrantEmail: '', registrantPhone: '', status: 'BORRADOR', activities: [], createdAt: now(), updatedAt: now() })
@@ -87,7 +88,7 @@
   }
   function saveLocalAndRender() {
     plan().updatedAt = now(); persistLocal(); renderSummary()
-    $('saveMessage').textContent = 'Tus cambios se guardaron en este dispositivo. Podés continuar después desde este mismo equipo.'
+    $('saveMessage').textContent = 'Cambios en curso. Tocá “Guardar borrador” para que aparezcan en Acceso Admin.'
   }
   function apiHeaders(token, editToken) {
     const headers = { apikey: CONFIG.publishableKey, Authorization: `Bearer ${token || CONFIG.publishableKey}`, 'Content-Type': 'application/json' }
@@ -169,7 +170,7 @@
   }
   function connectionBanner() {
     const box = $('connection'); box.classList.add('visible', configured ? 'ok' : 'warning')
-    box.textContent = configured ? 'Conexión activa. Al enviar, la DDT recibirá el plan.' : 'El formulario puede guardar un borrador en este dispositivo. El envío en línea estará disponible cuando se complete la conexión.'
+    box.textContent = configured ? 'Conexión activa. Los borradores se guardan en línea y aparecen en Acceso Admin.' : 'Sin conexión con Supabase: los cambios solo se guardan en este dispositivo y no aparecen en Acceso Admin.'
   }
   function setupSelectors() {
     setOptions($('region'), Object.keys(REGIONS), regionFor(store.selectedDelegation))
@@ -236,6 +237,7 @@
       : 'Agregá o editá las capacitaciones del mes. Cuando el plan esté completo, podrás enviarlo a la DDT.'
     $('help').hidden = readonly
     for (const id of ['saveDraftStep1', 'saveDraftStep2']) $(id).hidden = readonly
+    for (const id of ['saveDraftStep1', 'saveDraftStep2']) $(id).textContent = sent ? 'Guardar cambios' : 'Guardar borrador'
     const downloadReady = Boolean(delegationSession && sent && current.remoteId)
     $('downloadPanel').hidden = false
     $('downloadEyebrow').textContent = noActivitiesDeclaration && downloadReady ? 'Aviso enviado' : downloadReady ? 'Plan enviado' : 'Descargas del plan'
@@ -254,13 +256,14 @@
       ? readonly
         ? 'La DDT recibió este plan. Podés consultarlo y descargarlo. Para hacer cambios, solicitá habilitación a la DDT.'
         : 'La DDT recibió este plan. Si hiciste cambios autorizados, confirmá para guardarlos.'
-      : 'Cuando termines de cargar las capacitaciones, seleccioná “Enviar plan a la DDT”. El sistema te pedirá confirmar antes de enviarlo.'
+      : 'Primero podés guardar el borrador para que la DDT lo vea. Cuando esté completo, seleccioná “Enviar plan a la DDT”.'
     if (noActivitiesDeclaration) $('submitStepHelp').textContent = readonly
       ? 'La DDT recibió tu aviso de que no hay capacitaciones planificadas para este mes.'
       : 'La DDT habilitó cambios. Podés agregar las capacitaciones de este mes y guardarlas.'
     $('submitPlan').textContent = sent ? 'Guardar cambios' : 'Enviar plan a la DDT'
-    $('submitPlan').hidden = readonly || (!sent && current.activities.length === 0)
-    $('submitNoActivities').hidden = readonly || sent || current.activities.length > 0
+    const activitiesToSubmit = hasActivitiesToSubmit(current.activities)
+    $('submitPlan').hidden = readonly || (!sent && !activitiesToSubmit)
+    $('submitNoActivities').hidden = readonly || sent || activitiesToSubmit
     $('addFirst').hidden = readonly
     if (delegationSession && sent && readonly) $('saveMessage').textContent = noActivitiesDeclaration
       ? 'El aviso de que no hay capacitaciones planificadas fue enviado y quedó guardado en el SAT.'
@@ -321,12 +324,9 @@
       }
     }
   }
-  function saveDraftOnDevice() {
-    plan().updatedAt = now()
-    persistLocal()
-    renderSummary()
-    $('saveMessage').textContent = 'Borrador guardado en este dispositivo. Podés volver más tarde desde este mismo equipo.'
-    toast('Borrador guardado en este dispositivo.')
+  async function saveDraftOnDevice() {
+    const status = plan().status === 'ENVIADO' ? 'ENVIADO' : 'BORRADOR'
+    await savePlan(status)
   }
   function registrantStepIssues() {
     const current = plan(); const issues = []
@@ -345,7 +345,10 @@
   }
   function requestPlanSubmission(noActivities = false) {
     const current = plan()
-    if (noActivities && current.activities.length) { toast('Quitá o guardá las capacitaciones antes de enviar este aviso.'); return }
+    if (noActivities && hasActivitiesToSubmit(current.activities)) {
+      toast('Este plan tiene capacitaciones. Usá «Enviar plan a la DDT» para enviarlas.')
+      return
+    }
     const isDeclaration = noActivities || isNoActivitiesDeclaration(current)
     const issues = validatePlan(current.status !== 'ENVIADO', isDeclaration)
     if (issues.length) { showIssuesInStep(issues, 2); return }
@@ -417,7 +420,7 @@
     table.append(thead, tbody); wrapper.append(table); root.append(wrapper)
   }
   function renderActivities() {
-    const root = $('activities'); root.replaceChildren(); const current = plan(); $('emptyState').hidden = current.activities.length > 0
+    const root = $('activities'); root.replaceChildren(); const current = plan(); $('emptyState').hidden = hasActivitiesToSubmit(current.activities)
     const savedActivities = current.activities.filter(item => !item.draft)
     renderActivityTable(root, savedActivities, current)
     $('addActivityTop').disabled = current.activities.some(item => item.draft) || Boolean(editingActivityId)
@@ -472,20 +475,23 @@
   function addActivity() { if (plan().activities.some(item => item.draft) || editingActivityId) return; plan().activities.push(blankActivity()); saveLocalAndRender(); renderActivities(); document.querySelector('.activity-card:last-child')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
   async function saveActivity(item) {
     const wasEditing = editingActivityId === item.id; const original = wasEditing ? editingSnapshot : null
+    const activityIssues = validatePlan(false).filter(issue => issue.activityId === item.id)
+    if (activityIssues.length) {
+      showIssuesInStep(activityIssues, 2)
+      toast('Completá los campos obligatorios de esta capacitación.')
+      return
+    }
     item.draft = false; if (wasEditing) { editingActivityId = null; editingSnapshot = null }
     const keepSubmitted = delegationSession && plan().status === 'ENVIADO'
     if (!keepSubmitted) plan().status = 'BORRADOR'
     plan().updatedAt = now(); persistLocal(); renderActivities(); renderSummary()
-    $('saveMessage').textContent = keepSubmitted ? 'Cambios guardados en el plan enviado.' : 'Actividad guardada como borrador. Ya podés agregar otra actividad o continuar con el plan.'
-    toast(keepSubmitted ? 'Cambios guardados en el plan enviado.' : 'Actividad guardada como borrador.')
-    if (!validatePlan(false).length) {
-      const saved = await savePlan(keepSubmitted ? 'ENVIADO' : 'BORRADOR')
-      if (!saved) {
-        const itemIndex = plan().activities.findIndex(activity => activity.id === item.id)
-        if (wasEditing && original && itemIndex >= 0) { plan().activities[itemIndex] = original; editingActivityId = item.id; editingSnapshot = original }
-        else item.draft = true
-        persistLocal(); renderActivities(); renderSummary()
-      }
+    $('saveMessage').textContent = keepSubmitted ? 'Guardando cambios en el plan enviado…' : 'Guardando borrador en línea…'
+    const saved = await savePlan(keepSubmitted ? 'ENVIADO' : 'BORRADOR')
+    if (!saved) {
+      const itemIndex = plan().activities.findIndex(activity => activity.id === item.id)
+      if (wasEditing && original && itemIndex >= 0) { plan().activities[itemIndex] = original; editingActivityId = item.id; editingSnapshot = original }
+      else item.draft = true
+      persistLocal(); renderActivities(); renderSummary()
     }
   }
   function clearFieldError(control) {
@@ -553,9 +559,16 @@
   async function savePlan(status, allowNoActivities = false) {
     if (savingPlan) return false
     const current = plan()
-    const finalSubmission = status === 'ENVIADO' && current.status !== 'ENVIADO'; const issues = validatePlan(finalSubmission, allowNoActivities || isNoActivitiesDeclaration(current))
+    const finalSubmission = status === 'ENVIADO' && current.status !== 'ENVIADO'
+    const issues = status === 'ENVIADO' ? validatePlan(finalSubmission, allowNoActivities || isNoActivitiesDeclaration(current)) : []
     if (issues.length) { showIssuesInStep(issues, 2); toast('Completá los campos resaltados en rojo.'); return false }
-    if (!configured) { persistLocal(); toast('Borrador local guardado. Falta conectar Supabase para registrar la información en línea.'); return false }
+    if (!configured) {
+      persistLocal()
+      const message = 'Guardado solo en este dispositivo; no aparece en Acceso Admin porque falta la conexión con Supabase.'
+      $('saveMessage').textContent = message
+      toast(message)
+      return false
+    }
     const payload = remotePayload(current, status)
     if (delegationSession && selectedPlanPeriod !== '2026-11') {
       payload.period = selectedPlanPeriod + '-01'
@@ -591,8 +604,8 @@
         toast('El envío todavía no fue confirmado por el sistema.')
         return false
       }
-      $('saveMessage').textContent = status === 'ENVIADO' ? 'Plan enviado correctamente a la DDT.' : 'Borrador guardado en línea.'
-      toast(status === 'ENVIADO' ? 'Plan enviado correctamente.' : 'Borrador guardado en línea.')
+      $('saveMessage').textContent = status === 'ENVIADO' ? 'Plan enviado correctamente a la DDT.' : 'Borrador guardado en línea. Ya aparece en Acceso Admin.'
+      toast(status === 'ENVIADO' ? 'Plan enviado correctamente.' : 'Borrador guardado en línea. Ya aparece en Acceso Admin.')
       if (status === 'ENVIADO' && delegationSession) {
         try { await refreshSelectedPlanFromRemote() }
         catch (_) { delegationCanEdit = false; setDelegationControls() }
