@@ -354,9 +354,7 @@
       ? 'La DDT recibió tu aviso de que no hay capacitaciones planificadas para este mes.'
       : 'La DDT habilitó cambios. Podés agregar las capacitaciones de este mes y guardarlas.'
     $('submitPlan').textContent = sent ? 'Guardar cambios' : 'Enviar plan a la DDT'
-    const activitiesToSubmit = hasActivitiesToSubmit(current.activities)
-    $('submitPlan').hidden = readonly || (!sent && !activitiesToSubmit)
-    $('submitNoActivities').hidden = readonly || sent || activitiesToSubmit
+    $('submitPlan').hidden = readonly
     $('addFirst').hidden = readonly
     if (delegationSession && sent && readonly) $('saveMessage').textContent = noActivitiesDeclaration
       ? 'El aviso de que no hay capacitaciones planificadas fue enviado y quedó guardado en el SAT.'
@@ -367,7 +365,7 @@
     if (!delegationSession || !delegationAccount) return
     const readonly = !delegationCanEdit
     $('delegationReadOnly').hidden = !readonly
-    for (const id of ['addActivityTop', 'addFirst', 'submitPlan', 'submitNoActivities']) $(id).hidden = readonly
+    for (const id of ['addActivityTop', 'addFirst', 'submitPlan']) $(id).hidden = readonly
     for (const id of ['region', 'delegation', 'registrantName', 'registrantRole', 'registrantEmail', 'registrantPhone']) {
       const control = $(id)
       control.disabled = readonly || id === 'region' || id === 'delegation'
@@ -1709,7 +1707,6 @@
     })
     $('addFirst').onclick = addActivity
     $('addActivityTop').onclick = addActivity
-    $('submitNoActivities').onclick = () => requestPlanSubmission(true)
     $('stepNav1').onclick = () => showDelegationStep(1)
     $('stepNav2').onclick = () => showDelegationStep(2)
     $('step1Continue').onclick = () => {
@@ -1718,7 +1715,7 @@
       showDelegationStep(2)
     }
     $('step2Back').onclick = () => showDelegationStep(1)
-    $('submitPlan').onclick = () => requestPlanSubmission(false)
+    $('submitPlan').onclick = () => requestPlanSubmission(!hasActivitiesToSubmit(plan().activities))
     $('confirmSubmitPlan').onclick = async () => {
       const button = $('confirmSubmitPlan')
       button.disabled = true
