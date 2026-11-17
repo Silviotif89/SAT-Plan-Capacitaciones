@@ -43,6 +43,8 @@
   let adminPeriod = '2026-11'
   let adminRequest = 0
   let delegationSession = null
+  let delegationRefreshPromise = null
+  let delegationRefreshSession = null
   let delegationAccount = null
   let selectedPlanPeriod = '2026-11'
   let activeDelegationStep = 1
@@ -112,8 +114,59 @@
     if (editToken) headers['x-edit-token'] = editToken
     return headers
   }
+  function delegationSessionExpiredError(cause) {
+    const error = new Error('La sesión de la delegación venció y no pudo renovarse. La actividad sigue en pantalla; mantené esta página abierta y volvé a ingresar para guardar de nuevo.')
+    error.status = 401
+    error.code = 'session_expired'
+    error.sessionExpired = true
+    if (cause) error.cause = cause
+    return error
+  }
+  async function refreshDelegationSession() {
+    const activeSession = delegationSession
+    if (!activeSession?.refresh_token) throw delegationSessionExpiredError()
+    if (delegationRefreshPromise && delegationRefreshSession !== activeSession) {
+      try { await delegationRefreshPromise } catch (_) { /* La nueva sesión debe intentar renovar su propio token. */ }
+      return await refreshDelegationSession()
+    }
+    if (!delegationRefreshPromise) {
+      delegationRefreshSession = activeSession
+      const refreshPromise = (async () => {
+        try {
+          const response = await fetch(`${CONFIG.supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: { apikey: CONFIG.publishableKey, Authorization: `Bearer ${CONFIG.publishableKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: activeSession.refresh_token })
+          })
+          const text = await response.text()
+          let body = null
+          try { body = text ? JSON.parse(text) : null } catch (_) { body = { message: text || `Error ${response.status}` } }
+          if (!response.ok || !body?.access_token) throw new Error(body?.message || body?.error_description || 'Supabase no aceptó la renovación de sesión.')
+          if (delegationSession !== activeSession) throw new Error('La sesión cambió durante la renovación.')
+          Object.assign(activeSession, body)
+          return activeSession.access_token
+        } catch (error) { throw delegationSessionExpiredError(error) }
+      })()
+      let sharedRefreshPromise
+      sharedRefreshPromise = refreshPromise.finally(() => {
+        if (delegationRefreshPromise === sharedRefreshPromise) {
+          delegationRefreshPromise = null
+          delegationRefreshSession = null
+        }
+      })
+      delegationRefreshPromise = sharedRefreshPromise
+    }
+    return await delegationRefreshPromise
+  }
   async function api(path, options = {}, token = '', editToken = '') {
-    const response = await fetch(`${CONFIG.supabaseUrl}${path}`, { ...options, headers: { ...apiHeaders(token, editToken), ...(options.headers || {}) } })
+    const sessionForToken = delegationSession?.access_token === token ? delegationSession : null
+    const request = accessToken => fetch(`${CONFIG.supabaseUrl}${path}`, { ...options, headers: { ...apiHeaders(accessToken, editToken), ...(options.headers || {}) } })
+    let response = await request(token)
+    if (response.status === 401 && sessionForToken && delegationSession === sessionForToken) {
+      const retryToken = sessionForToken.access_token !== token ? sessionForToken.access_token : await refreshDelegationSession()
+      response = await request(retryToken)
+      if (response.status === 401) throw delegationSessionExpiredError()
+    }
     const text = await response.text()
     let body = null
     try { body = text ? JSON.parse(text) : null } catch (_) { body = { message: text || `Error ${response.status}` } }
@@ -692,6 +745,11 @@
       }
       return true
     } catch (error) {
+      if (error.sessionExpired) {
+        $('saveMessage').textContent = error.message
+        toast('La sesión venció; la actividad sigue en pantalla.')
+        return false
+      }
       if (status === 'ENVIADO' && delegationSession) {
         try {
           const latest = await getDelegationPlanRow()

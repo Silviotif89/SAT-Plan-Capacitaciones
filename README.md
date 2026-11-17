@@ -30,11 +30,11 @@ No se requiere cambio de esquema ni ejecutar una migración en Supabase: estos m
 
 ## Guardado en línea configurado
 
-GitHub Pages aloja páginas estáticas: no puede guardar los planes de varias delegaciones por sí solo. Esta carpeta usa Supabase como almacenamiento central, con políticas de acceso por fila (RLS). El contenido del formulario permanece en memoria mientras se completa; al presionar **Guardar borrador** se envía a Supabase. La aplicación no escribe planes en `localStorage`. Si queda un borrador antiguo de la versión anterior, lo lee una sola vez, elimina esa clave del navegador y lo migra a Supabase cuando inicia sesión la delegación correspondiente.
+GitHub Pages aloja páginas estáticas: no puede guardar los planes de varias delegaciones por sí solo. Esta carpeta usa Supabase como almacenamiento central, con políticas de acceso por fila (RLS). Los datos incompletos permanecen en memoria mientras se completa el formulario; **Guardar actividad** envía la actividad a Supabase y **Enviar plan a la DDT** guarda el plan con estado `ENVIADO`. La aplicación no escribe planes en `localStorage`. Si queda un borrador antiguo de la versión anterior, lo lee una sola vez, elimina esa clave del navegador y lo migra a Supabase cuando inicia sesión la delegación correspondiente.
 
-Al enviar un plan, la aplicación comprueba el estado confirmado en Supabase. Si el guardado inicial se completó pero falló el cambio a `ENVIADO`, deja el registro como borrador remoto y permite reintentar sin duplicarlo. Si la conexión impide confirmar el resultado, conserva los datos solo en pantalla y recomienda revisar **Acceso Admin** antes de repetir el envío.
+Al enviar un plan, la aplicación confirma el estado recibido desde Supabase antes de habilitar las descargas. Si la conexión impide confirmar el resultado, conserva los datos solo en pantalla y recomienda revisar **Acceso Admin** antes de repetir el envío.
 
-El proyecto ya está conectado a Supabase mediante su URL y su **Publishable key**. La tabla, las políticas RLS y el usuario administrativo también están creados. La conexión y el acceso a la consola Admin fueron comprobados el 12 de octubre de 2026.
+El proyecto ya está conectado a Supabase mediante su URL y su **Publishable key**. La tabla, las políticas RLS y el usuario administrativo también están creados. La conexión y el acceso a la consola Admin fueron comprobados el 12 de octubre de 2026. Las sesiones de las delegaciones renuevan automáticamente el token de acceso al vencer; si Supabase rechaza también el token de renovación, la app conserva los cambios en pantalla y pide volver a ingresar.
 
 Los pasos siguientes solo son necesarios si en el futuro se migra a otro proyecto de Supabase:
 
@@ -58,8 +58,8 @@ El nombre de usuario visible para la consola es `DDT36`. El formulario lo traduc
 ## Probar antes de publicar
 
 1. Abra `index.html` en el navegador o sirva la carpeta con un servidor local.
-2. Inicie sesión con una cuenta de delegación, complete datos y use **Guardar borrador**.
-3. Vuelva a abrir la cuenta o el sitio en otro dispositivo: el borrador debe cargarse desde Supabase.
+2. Inicie sesión con una cuenta de delegación, complete los datos, guarde cada actividad y envíe el plan a la DDT.
+3. Vuelva a abrir la cuenta o el sitio en otro dispositivo: el plan debe cargarse desde Supabase.
 4. Use **Acceso Admin**, inicie sesión con `DDT36` y compruebe que aparezca la delegación, quien la llenó, sus datos de contacto y las actividades.
 5. Si la misma delegación intenta crear otro plan desde otro navegador, el sistema evita duplicarlo. Para continuar la edición desde otro equipo, la DDT debe recuperar o registrar el plan con esa delegación.
 
