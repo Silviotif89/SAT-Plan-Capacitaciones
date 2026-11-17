@@ -105,7 +105,7 @@
   }
   function updateInMemoryPlanAndRender() {
     plan().updatedAt = now(); renderSummary()
-    $('saveMessage').textContent = 'Cambios en curso. Tocá “Guardar borrador” para enviarlos a Supabase.'
+    $('saveMessage').textContent = 'Cambios en curso. Guardá cada capacitación en Supabase y enviá el plan a la DDT cuando esté completo.'
   }
   function apiHeaders(token, editToken) {
     const headers = { apikey: CONFIG.publishableKey, Authorization: `Bearer ${token || CONFIG.publishableKey}`, 'Content-Type': 'application/json' }
@@ -331,8 +331,6 @@
         : 'Este plan ya fue enviado a la DDT. Podés consultar las capacitaciones y descargarlo abajo.'
       : 'Agregá o editá las capacitaciones del mes. Cuando el plan esté completo, podrás enviarlo a la DDT.'
     $('help').hidden = readonly
-    for (const id of ['saveDraftStep1', 'saveDraftStep2']) $(id).hidden = readonly
-    for (const id of ['saveDraftStep1', 'saveDraftStep2']) $(id).textContent = sent ? 'Guardar cambios' : 'Guardar borrador'
     const downloadReady = Boolean(delegationSession && sent && current.remoteId)
     $('downloadPanel').hidden = false
     $('downloadEyebrow').textContent = noActivitiesDeclaration && downloadReady ? 'Aviso enviado' : downloadReady ? 'Plan enviado' : 'Descargas del plan'
@@ -351,7 +349,7 @@
       ? readonly
         ? 'La DDT recibió este plan. Podés consultarlo y descargarlo. Para hacer cambios, solicitá habilitación a la DDT.'
         : 'La DDT recibió este plan. Si hiciste cambios autorizados, confirmá para guardarlos.'
-      : 'Primero podés guardar el borrador para que la DDT lo vea. Cuando esté completo, seleccioná “Enviar plan a la DDT”.'
+      : 'Al confirmar, el plan se guardará en Supabase y quedará enviado a la DDT.'
     if (noActivitiesDeclaration) $('submitStepHelp').textContent = readonly
       ? 'La DDT recibió tu aviso de que no hay capacitaciones planificadas para este mes.'
       : 'La DDT habilitó cambios. Podés agregar las capacitaciones de este mes y guardarlas.'
@@ -369,7 +367,7 @@
     if (!delegationSession || !delegationAccount) return
     const readonly = !delegationCanEdit
     $('delegationReadOnly').hidden = !readonly
-    for (const id of ['addActivityTop', 'addFirst', 'submitPlan', 'submitNoActivities', 'saveDraftStep1', 'saveDraftStep2']) $(id).hidden = readonly
+    for (const id of ['addActivityTop', 'addFirst', 'submitPlan', 'submitNoActivities']) $(id).hidden = readonly
     for (const id of ['region', 'delegation', 'registrantName', 'registrantRole', 'registrantEmail', 'registrantPhone']) {
       const control = $(id)
       control.disabled = readonly || id === 'region' || id === 'delegation'
@@ -418,10 +416,6 @@
         heading.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }
     }
-  }
-  async function saveDraftToSupabase() {
-    const status = plan().status === 'ENVIADO' ? 'ENVIADO' : 'BORRADOR'
-    await savePlan(status)
   }
   function registrantStepIssues() {
     const current = plan(); const issues = []
@@ -683,14 +677,7 @@
         }
         rows = await api(`/rest/v1/${endpointTable}?id=eq.${encodeURIComponent(current.remoteId)}&updated_at=eq.${encodeURIComponent(current.remoteUpdatedAt)}&select=*`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) }, accessToken, delegationSession ? '' : current.editToken)
       }
-      else if (delegationSession && status === 'ENVIADO') {
-        const draftRows = await api(`/rest/v1/${endpointTable}?select=*`, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...payload, status: 'BORRADOR', created_at: now() }) }, accessToken, current.editToken)
-        if (!draftRows?.length) throw new Error('No se pudo crear el borrador antes del envío. Revisá tu conexión e intentá nuevamente.')
-        current.remoteId = draftRows[0].id; current.remoteUpdatedAt = draftRows[0].updated_at || now(); current.status = String(draftRows[0].status || 'BORRADOR').toUpperCase(); current.updatedAt = current.remoteUpdatedAt
-        const submittedPayload = { ...payload }
-        if (selectedPlanPeriod === '2026-11') delete submittedPayload.edit_token
-        rows = await api(`/rest/v1/${endpointTable}?id=eq.${encodeURIComponent(current.remoteId)}&updated_at=eq.${encodeURIComponent(current.remoteUpdatedAt)}&select=*`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(submittedPayload) }, accessToken, '')
-      } else rows = await api(`/rest/v1/${endpointTable}?select=*`, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...payload, created_at: now() }) }, accessToken, current.editToken)
+      else rows = await api(`/rest/v1/${endpointTable}?select=*`, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...payload, created_at: now() }) }, accessToken, current.editToken)
       if (!rows?.length) throw new Error('No se guardó: el plan cambió desde la última consulta. Actualizá la página, revisá los cambios y volvé a guardar para no perder información.')
       const storedStatus = String(rows[0].status || '').toUpperCase()
       current.remoteId = rows[0].id; current.remoteUpdatedAt = rows[0].updated_at || now(); if (storedStatus) current.status = storedStatus; current.updatedAt = current.remoteUpdatedAt; clearValidationErrors(); renderSummary()
@@ -699,8 +686,8 @@
         toast('El envío todavía no fue confirmado por el sistema.')
         return false
       }
-      $('saveMessage').textContent = status === 'ENVIADO' ? 'Plan enviado y guardado en Supabase. Ya aparece en Acceso Admin.' : 'Borrador guardado en Supabase. Ya aparece en Acceso Admin.'
-      toast(status === 'ENVIADO' ? 'Plan enviado y registrado en Supabase.' : 'Borrador guardado en Supabase.')
+      $('saveMessage').textContent = status === 'ENVIADO' ? 'Plan enviado y guardado en Supabase. Ya aparece en Acceso Admin.' : 'Cambios guardados en Supabase. El plan sigue en preparación.'
+      toast(status === 'ENVIADO' ? 'Plan enviado y registrado en Supabase.' : 'Cambios guardados en Supabase.')
       if (status === 'ENVIADO' && delegationSession) {
         try { await refreshSelectedPlanFromRemote() }
         catch (_) { delegationCanEdit = false; setDelegationControls() }
@@ -737,6 +724,16 @@
               }
               return false
             }
+          }
+          if (!latest && !current.remoteId) {
+            const permissionDenied = error.status === 401 || error.status === 403 || error.code === '42501'
+            const periodName = periodLabel(submissionPeriod)
+            const message = permissionDenied
+              ? `Supabase rechazó la creación del plan (${error.status || error.code}) para ${current.delegation} en ${periodName}. La DDT debe revisar el acceso de envío. Tus datos siguen en pantalla; no cierres la página.`
+              : `Supabase no creó el plan de ${current.delegation} para ${periodName}. Tus datos siguen en pantalla; mantené la página abierta y contactá a la DDT si persiste.`
+            $('saveMessage').textContent = message
+            toast(permissionDenied ? 'Supabase rechazó el envío; la DDT debe revisar el acceso.' : 'No se confirmó el envío; conservá la página abierta.')
+            return false
           }
         } catch (_) { /* Si tampoco responde la consulta, no se afirma que el servidor haya guardado o enviado. */ }
         const message = 'Supabase no confirmó si el plan se guardó o se envió. Tus datos siguen en pantalla; mantené la página abierta y verificá Acceso Admin antes de repetir el envío.'
@@ -1721,8 +1718,6 @@
       showDelegationStep(2)
     }
     $('step2Back').onclick = () => showDelegationStep(1)
-    $('saveDraftStep1').onclick = saveDraftToSupabase
-    $('saveDraftStep2').onclick = saveDraftToSupabase
     $('submitPlan').onclick = () => requestPlanSubmission(false)
     $('confirmSubmitPlan').onclick = async () => {
       const button = $('confirmSubmitPlan')

@@ -50,7 +50,7 @@ create policy sat_monthly_delegate_read on public.sat_monthly_plans for select t
  using(delegation=(select public.sat_current_delegation()));
 drop policy if exists sat_monthly_delegate_insert on public.sat_monthly_plans;
 create policy sat_monthly_delegate_insert on public.sat_monthly_plans for insert to authenticated
- with check(delegation=(select public.sat_current_delegation()) and status='BORRADOR');
+ with check(delegation=(select public.sat_current_delegation()) and status in ('BORRADOR','ENVIADO'));
 drop policy if exists sat_monthly_delegate_update on public.sat_monthly_plans;
 create policy sat_monthly_delegate_update on public.sat_monthly_plans for update to authenticated
  using(delegation=(select public.sat_current_delegation()) and
@@ -69,7 +69,7 @@ create policy sat_november_delegate_read on public.sat_november_2026_plans for s
  using(delegation=(select public.sat_current_delegation()));
 drop policy if exists sat_november_delegate_insert on public.sat_november_2026_plans;
 create policy sat_november_delegate_insert on public.sat_november_2026_plans for insert to authenticated
- with check(delegation=(select public.sat_current_delegation()) and status='BORRADOR');
+ with check(delegation=(select public.sat_current_delegation()) and status in ('BORRADOR','ENVIADO'));
 drop policy if exists sat_november_delegate_update on public.sat_november_2026_plans;
 create policy sat_november_delegate_update on public.sat_november_2026_plans for update to authenticated
  using(delegation=(select public.sat_current_delegation()) and
