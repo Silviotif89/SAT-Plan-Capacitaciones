@@ -1333,7 +1333,6 @@
     $('adminPeriodHeading').textContent = 'Seguimiento del Plan de ' + $('periodMonth').textContent + ' ' + $('periodYear').textContent
     $('adminDownloadComplete').textContent = `▣ Descargar plan completo ${periodLabel(period).toLocaleLowerCase('es-NI')}`
     $('adminDownloadExcelComplete').textContent = `▦ Descargar Excel completo ${periodLabel(period).toLocaleLowerCase('es-NI')}`
-    $('adminPeriodNotice').hidden = legacy
     const cancelledMonth = $('cancelledMonth')
     const previousCancelledMonth = cancelledMonth.value
     cancelledMonth.replaceChildren(new Option('Todo el período', ''), new Option(periodLabel(period), period))
