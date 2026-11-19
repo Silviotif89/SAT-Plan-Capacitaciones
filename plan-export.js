@@ -206,10 +206,22 @@
     const responsible = String(item.responsible || '').trim()
     const provider = String(item.trainingProvider || '').trim()
     const facilitator = String(item.ddtFacilitator || '').trim()
-    const primary = responsible || provider || facilitator
+    const normalizedResponsible = normalizedTemplateValue(responsible)
+    const normalizedProvider = normalizedTemplateValue(provider)
+    const isCentralProvider = normalizedProvider === 'intur central'
+    const genericInturResponsible = ['intur', 'intur central'].includes(normalizedResponsible)
+    if (isCentralProvider && facilitator) return facilitator
+    if (normalizedProvider === 'setec') {
+      const venueInstitution = String(item.location || '').match(/\b(?:CUR|UNAN)\s+[\p{L}\p{M}]+(?:\s+[\p{L}\p{M}]+)?/iu)?.[0]?.trim()
+      const responsibleInstitution = genericInturResponsible ? '' : responsible.replace(/^INTUR\s*[-–—:]\s*/iu, '').trim()
+      const institution = venueInstitution || responsibleInstitution
+      if (institution) return normalizedTemplateValue(institution).includes('setec') ? institution : `${institution} (SETEC)`
+      if (genericInturResponsible) return provider
+    }
+    const primary = !isCentralProvider && genericInturResponsible && provider ? provider : responsible || provider || facilitator
     if (!primary) return ''
     const details = []
-    if (provider && normalizedTemplateValue(provider) !== normalizedTemplateValue(primary)) details.push(`imparte ${provider}`)
+    if (provider && !isCentralProvider && normalizedProvider !== normalizedTemplateValue(primary)) details.push(`imparte ${provider}`)
     if (facilitator && normalizedTemplateValue(facilitator) !== normalizedTemplateValue(primary)) details.push(`facilitador/a ${facilitator}`)
     return details.length ? `${primary} (${details.join('; ')})` : primary
   }
