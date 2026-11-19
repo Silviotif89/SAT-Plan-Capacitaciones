@@ -176,11 +176,53 @@
   const templateParagraph = (text, { center = false, bold = false, underline = false, keepNext = false, before = 0, after = 0 } = {}) => `<w:p><w:pPr>${keepNext ? '<w:keepNext/>' : ''}<w:keepLines/><w:spacing w:before="${before}" w:after="${after}" w:line="240" w:lineRule="auto"/>${center ? '<w:jc w:val="center"/>' : ''}</w:pPr><w:r><w:rPr>${bold ? '<w:b/>' : ''}<w:sz w:val="22"/>${underline ? '<w:u w:val="single"/>' : ''}</w:rPr><w:t>${xml(text)}</w:t></w:r></w:p>`
   const templateField = (label, value, keepNext = true) => value === undefined || value === null || String(value).trim() === '' ? '' : `<w:p><w:pPr>${keepNext ? '<w:keepNext/>' : ''}<w:keepLines/><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="22"/></w:rPr><w:t>${xml(label)}:</w:t></w:r><w:r><w:rPr><w:sz w:val="22"/></w:rPr><w:t xml:space="preserve"> ${xml(value)}</w:t></w:r></w:p>`
   const templateBlank = () => '<w:p><w:pPr><w:keepLines/><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:p>'
+  const normalizedTemplateValue = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es-NI').replace(/[^a-z0-9]+/g, ' ').trim()
+  const templateDateLabel = value => {
+    const [year, month, day] = String(value || '').split('-').map(Number)
+    if (!year || !month || !day) return 'Fecha pendiente de confirmar'
+    const date = new Date(year, month - 1, day)
+    const weekday = new Intl.DateTimeFormat('es-NI', { weekday: 'long' }).format(date)
+    const monthName = new Intl.DateTimeFormat('es-NI', { month: 'long' }).format(date)
+    return `${weekday[0].toLocaleUpperCase('es-NI')}${weekday.slice(1)} ${day} de ${monthName} de ${year}`
+  }
+  const templateTime = value => {
+    const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})$/)
+    if (!match) return String(value || '').trim()
+    const hour = Number(match[1])
+    if (hour > 23) return String(value || '').trim()
+    return `${hour % 12 || 12}:${match[2]} ${hour < 12 ? 'a.m.' : 'p.m.'}`
+  }
+  const templateSchedule = item => [templateTime(item.startTime), templateTime(item.endTime)].filter(Boolean).join(' – ')
+  const templateLocation = item => {
+    const location = String(item.location || '').trim()
+    const municipality = String(item.municipality || '').trim()
+    if (!location) return municipality
+    const locationWords = ` ${normalizedTemplateValue(location)} `
+    const municipalityWords = ` ${normalizedTemplateValue(municipality)} `
+    if (!municipality || locationWords.includes(municipalityWords)) return location
+    return `${location}, ${municipality}`
+  }
+  const templateResponsibility = item => {
+    const responsible = String(item.responsible || '').trim()
+    const provider = String(item.trainingProvider || '').trim()
+    const facilitator = String(item.ddtFacilitator || '').trim()
+    const primary = responsible || provider || facilitator
+    if (!primary) return ''
+    const details = []
+    if (provider && normalizedTemplateValue(provider) !== normalizedTemplateValue(primary)) details.push(`imparte ${provider}`)
+    if (facilitator && normalizedTemplateValue(facilitator) !== normalizedTemplateValue(primary)) details.push(`facilitador/a ${facilitator}`)
+    return details.length ? `${primary} (${details.join('; ')})` : primary
+  }
+  const templateProjection = value => {
+    const count = Number(value)
+    return Number.isFinite(count) && count > 0 ? `${count.toLocaleString('es-NI')} personas` : String(value || '').trim()
+  }
   const docxFromTemplate = async plan => {
     const month = periodInfo(plan)
     if (!window.PizZip) throw new Error('No se pudo cargar la plantilla institucional de Word.')
-    const response = await fetch('assets/plantilla-sat-mensual.docx')
-    if (!response.ok) throw new Error('No se encontró la plantilla institucional de Word.')
+    const templatePath = plan.complete ? 'assets/plantilla-plan-ejemplo.docx' : 'assets/plantilla-sat-mensual.docx'
+    const response = await fetch(templatePath)
+    if (!response.ok) throw new Error(plan.complete ? 'No se encontró la plantilla del plan ejemplo de Word.' : 'No se encontró la plantilla institucional de Word.')
     const zip = new window.PizZip(await response.arrayBuffer())
     const original = zip.file('word/document.xml').asText()
     const bodyStart = original.indexOf('<w:body>')
@@ -191,16 +233,66 @@
     if (sectionStart < 0) throw new Error('La plantilla institucional no contiene su configuración de página.')
     const section = existingBody.slice(sectionStart)
     const rows = activities(plan)
-    let previousDate = ''
-    const content = rows.map((item, index) => {
-      const date = String(item.date || '')
-      const dateHeading = date !== previousDate ? templateParagraph(dateLabel(date), { bold: true, underline: true, keepNext: true, before: 60, after: 40 }) : ''
-      previousDate = date
-      const observation = [item.additionalDates, item.observations].filter(value => String(value || '').trim()).join('. ')
-      return `${dateHeading}${templateParagraph(`${item.globalNumber || index + 1}. ${item.topic || 'Capacitación sin tema'}`, { bold: true, keepNext: true, before: dateHeading ? 0 : 60, after: 40 })}${plan.complete ? templateField('Departamento o región', item.delegation || plan.delegation) : ''}${templateField('Municipio', item.municipality)}${templateField('Hora', timeRange(item))}${templateField('Lugar', item.location)}${templateField('Institución que imparte', item.trainingProvider)}${templateField('Facilitador/a INTUR CENTRAL', item.ddtFacilitator)}${templateField('Participan', item.participatingInstitutions)}${templateField('Proyección de participantes', item.projectedParticipants)}${templateField('Responsable', item.responsible)}${templateField('Observación', observation, false)}${templateBlank()}`
-    }).join('') || templateParagraph('No se registraron capacitaciones para este plan.', { before: 60 })
-    const unitHeading = plan.complete ? 'DIRECCIÓN DE DESARROLLO TURÍSTICO' : `${delegationTitle(plan.delegation)} ${String(plan.delegation || '').toUpperCase()}`
-    const replacementBody = `${templateParagraph('INSTITUTO NICARAGÜENSE DE TURISMO', { center: true, bold: true })}${templateParagraph(unitHeading, { center: true, bold: true })}${templateParagraph(`PLAN MENSUAL DE CAPACITACIONES ${month.upper}`, { center: true, bold: true, underline: true })}${content}${section}`
+    let replacementBody = ''
+    if (plan.complete) {
+      const paragraphTemplates = [...existingBody.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].map(match => match[0])
+      const sampleParagraph = (predicate, label) => {
+        const paragraph = paragraphTemplates.find(candidate => predicate(paragraphText(candidate).trim()))
+        if (!paragraph) throw new Error(`La plantilla del plan ejemplo no contiene el formato de ${label}.`)
+        return paragraph
+      }
+      const replaceField = (paragraph, label, value) => {
+        if (value === undefined || value === null || String(value).trim() === '') return ''
+        let textNode = 0
+        return paragraph.replace(/(<w:t\b[^>]*>)([\s\S]*?)(<\/w:t>)/g, (_, open, _current, close) => {
+          const index = textNode++
+          if (index === 0) return `${open}${xml(`${label}:`)}${close}`
+          if (index === 1) return `${open}${xml(` ${value}`)}${close}`
+          return `${open}${close}`
+        })
+      }
+      const cloneParagraph = (paragraph, value) => replaceParagraphText(paragraph, value)
+      const directionHeading = sampleParagraph(text => text === 'DIRECCIÓN DE DESARROLLO TURÍSTICO', 'Dirección de Desarrollo Turístico')
+      const departmentHeading = sampleParagraph(text => text === 'DEPARTAMENTO DE ACOMPAÑAMIENTO TÉCNICO', 'Departamento de Acompañamiento Técnico')
+      const titleHeading = sampleParagraph(text => text.startsWith('PLAN MENSUAL DE CAPACITACIONES '), 'título mensual')
+      const dateHeading = sampleParagraph(text => /^(Lunes|Martes|Miércoles|Jueves|Viernes|Sábado|Domingo)\s+\d{1,2} de /i.test(text), 'fecha')
+      const activityHeading = sampleParagraph(text => /^\d+\.\s/.test(text), 'título de actividad')
+      const blankIndex = paragraphTemplates.findIndex(paragraph => !paragraphText(paragraph).trim())
+      if (blankIndex < 0) throw new Error('La plantilla del plan ejemplo no contiene el espaciado entre actividades.')
+      const blankParagraph = paragraphTemplates[blankIndex]
+      const fieldTemplates = Object.fromEntries(['Departamento', 'Hora', 'Lugar', 'Participan', 'Proyección de Participantes', 'Responsable', 'Observación'].map(label => [label, sampleParagraph(text => text.startsWith(`${label}:`), `campo ${label}`)]))
+      let previousDate = ''
+      const content = rows.map((item, index) => {
+        const date = String(item.date || '')
+        const dateBlock = date !== previousDate ? cloneParagraph(dateHeading, templateDateLabel(date)) : ''
+        previousDate = date
+        const observation = [item.additionalDates, item.observations].filter(value => String(value || '').trim()).join('. ')
+        const heading = cloneParagraph(activityHeading, `${index + 1}. ${item.topic || 'Capacitación sin tema'}`)
+        const fields = [
+          replaceField(fieldTemplates.Departamento, 'Departamento', item.delegation || plan.delegation),
+          replaceField(fieldTemplates.Hora, 'Hora', templateSchedule(item)),
+          replaceField(fieldTemplates.Lugar, 'Lugar', templateLocation(item)),
+          replaceField(fieldTemplates.Participan, 'Participan', item.participatingInstitutions),
+          replaceField(fieldTemplates['Proyección de Participantes'], 'Proyección de Participantes', templateProjection(item.projectedParticipants)),
+          replaceField(fieldTemplates.Responsable, 'Responsable', templateResponsibility(item)),
+          replaceField(fieldTemplates.Observación, 'Observación', observation),
+        ].join('')
+        return `${dateBlock}${heading}${fields}${blankParagraph}`
+      }).join('') || templateParagraph('No se registraron capacitaciones para este plan.', { before: 60 })
+      replacementBody = `${cloneParagraph(directionHeading, 'DIRECCIÓN DE DESARROLLO TURÍSTICO')}${cloneParagraph(departmentHeading, 'DEPARTAMENTO DE ACOMPAÑAMIENTO TÉCNICO')}${cloneParagraph(titleHeading, `PLAN MENSUAL DE CAPACITACIONES ${month.upper}`)}${content}${section}`
+    } else {
+      let previousDate = ''
+      const content = rows.map((item, index) => {
+        const date = String(item.date || '')
+        const dateHeading = date !== previousDate ? templateParagraph(dateLabel(date), { bold: true, underline: true, keepNext: true, before: 60, after: 40 }) : ''
+        previousDate = date
+        const observation = [item.additionalDates, item.observations].filter(value => String(value || '').trim()).join('. ')
+        return `${dateHeading}${templateParagraph(`${item.globalNumber || index + 1}. ${item.topic || 'Capacitación sin tema'}`, { bold: true, keepNext: true, before: dateHeading ? 0 : 60, after: 40 })}${templateField('Municipio', item.municipality)}${templateField('Hora', timeRange(item))}${templateField('Lugar', item.location)}${templateField('Institución que imparte', item.trainingProvider)}${templateField('Facilitador/a INTUR CENTRAL', item.ddtFacilitator)}${templateField('Participan', item.participatingInstitutions)}${templateField('Proyección de participantes', item.projectedParticipants)}${templateField('Responsable', item.responsible)}${templateField('Observación', observation, false)}${templateBlank()}`
+      }).join('') || templateParagraph('No se registraron capacitaciones para este plan.', { before: 60 })
+      const unitHeading = `${delegationTitle(plan.delegation)} ${String(plan.delegation || '').toUpperCase()}`
+      const headings = `${templateParagraph('INSTITUTO NICARAGÜENSE DE TURISMO', { center: true, bold: true })}${templateParagraph(unitHeading, { center: true, bold: true })}`
+      replacementBody = `${headings}${templateParagraph(`PLAN MENSUAL DE CAPACITACIONES ${month.upper}`, { center: true, bold: true, underline: true })}${content}${section}`
+    }
     zip.file('word/document.xml', `${original.slice(0, bodyStart + '<w:body>'.length)}${replacementBody}</w:body>${original.slice(bodyEnd + '</w:body>'.length)}`)
     return zip.generate({ type: 'uint8array', compression: 'DEFLATE' })
   }
